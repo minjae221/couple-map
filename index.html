@@ -14,6 +14,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Gowun+Dodum&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<style>
+/* 하트 클러스터 (핀 뭉침) */
+.heart-cluster{
+  background:var(--rose);color:#fff;border:3px solid var(--white);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;font-family:var(--hand);
+  font-size:1.05rem;box-shadow:0 4px 10px rgba(217,93,109,.45);
+}
+</style>
 <style>
 :root{
   --paper:#f7f1e5; --paper-deep:#efe6d3; --ink:#4a3f35; --ink-soft:#8a7d6f;
@@ -293,6 +302,9 @@ nav button.active::after{
 <div id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/dexie@3.2.7/dist/dexie.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=32f3dd6b67ffcbb366a6d77b4d89552b&libraries=services&autoload=false"></script>
 <script>
 "use strict";
@@ -331,6 +343,26 @@ function save() {
   }
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+/* 사진은 IndexedDB(Dexie)에 — localStorage 5MB 한계 해방. place.photos엔 사진 id만 */
+const ddb = new Dexie("cm_photos");
+ddb.version(1).stores({ photos: "id" });
+const isDataImg = (s) => typeof s === "string" && /^data:image\//.test(s);
+function makeThumb(dataURL) { // 팝업용 미니 썸네일 (localStorage에 보관)
+  return new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 320;
+      let { width: w, height: h } = img;
+      if (Math.max(w, h) > MAX) { const k = MAX / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      res(c.toDataURL("image/jpeg", 0.7));
+    };
+    img.onerror = () => res("");
+    img.src = dataURL;
+  });
+}
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const fmtDate = (iso) => { if (!DATE_RE.test(iso || "")) return ""; const [y, m, d] = iso.split("-"); return `${y}. ${+m}. ${+d}.`; };
@@ -374,7 +406,16 @@ const map = L.map("map", { zoomControl: false }).setView([36.5, 127.8], 7);
 L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
   maxZoom: 20, attribution: '&copy; OpenStreetMap &copy; CARTO'
 }).addTo(map);
-const pinLayer = L.layerGroup().addTo(map);
+const pinLayer = (typeof L.markerClusterGroup === "function"
+  ? L.markerClusterGroup({
+      maxClusterRadius: 42, showCoverageOnHover: false,
+      iconCreateFunction: (c) => L.divIcon({
+        className: "", iconSize: [38, 38],
+        html: `<div class="heart-cluster" style="width:38px;height:38px">♥${c.getChildCount()}</div>`,
+      }),
+    })
+  : L.layerGroup()
+).addTo(map);
 const heartIcon = L.divIcon({
   className: "heart-pin", iconSize: [34, 34], iconAnchor: [17, 30], popupAnchor: [0, -26],
   html: `<svg viewBox="0 0 32 32" width="34" height="34"><path d="M16 29C8 21.5 3 16.6 3 11.2 3 7 6.2 4 10 4c2.4 0 4.7 1.3 6 3.4C17.3 5.3 19.6 4 22 4c3.8 0 7 3 7 7.2 0 5.4-5 10.3-13 17.8z" fill="#d95d6d" stroke="#fffdf8" stroke-width="2"/></svg>`
@@ -386,7 +427,7 @@ function renderPins() {
   db.places.forEach((p) => {
     if (!Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) return;
     const m = L.marker([+p.lat, +p.lng], { icon: heartIcon }).addTo(pinLayer);
-    const ph = p.photos && typeof p.photos[0] === "string" ? p.photos[0] : "";
+    const ph = isDataImg(p.thumb) ? p.thumb : (isDataImg(p.photos && p.photos[0]) ? p.photos[0] : "");
     const img = ph ? `<img src="${esc(ph)}" alt="">` : `<div class="noimg">🖼</div>`;
     m.bindPopup(
       `<div class="pol">${img}<h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
@@ -518,7 +559,7 @@ $("photoAdd").onclick = () => $("photoFile").click();
 $("photoFile").addEventListener("change", async (e) => {
   const files = [...e.target.files].slice(0, 8);
   for (const f of files) {
-    try { draft.photos.push(await compress(f)); } catch (err) { toast("사진 처리 실패"); }
+    try { draft.photos.push({ id: uid(), data: await compress(f) }); } catch (err) { toast("사진 처리 실패"); }
   }
   e.target.value = "";
   renderPhotoRow();
@@ -526,10 +567,10 @@ $("photoFile").addEventListener("change", async (e) => {
 function renderPhotoRow() {
   const row = $("photoRow");
   row.querySelectorAll(".ph").forEach((n) => n.remove());
-  draft.photos.forEach((src, i) => {
+  draft.photos.forEach((p, i) => {
     const d = document.createElement("div");
     d.className = "ph";
-    d.innerHTML = `<img src="${src}" alt=""><button aria-label="삭제">✕</button>`;
+    d.innerHTML = `<img src="${p.data}" alt=""><button aria-label="삭제">✕</button>`;
     d.querySelector("button").onclick = () => { draft.photos.splice(i, 1); renderPhotoRow(); };
     row.insertBefore(d, $("photoAdd"));
   });
@@ -553,12 +594,20 @@ function compress(file) {
   });
 }
 
-$("btnSave").onclick = () => {
+$("btnSave").onclick = async () => {
   const name = $("fName").value.trim();
   if (!name) { toast("장소 이름을 적어주세요"); return; }
   const { lat, lng } = draft;
-  db.places.push({ id: uid(), name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), photos: draft.photos });
-  if (!save()) { renderAll(); return; }
+  const photoIds = draft.photos.map((p) => p.id);
+  let thumb = "";
+  try {
+    if (draft.photos.length) {
+      await ddb.photos.bulkPut(draft.photos.map((p) => ({ id: p.id, data: p.data })));
+      thumb = await makeThumb(draft.photos[0].data);
+    }
+  } catch (e) { toast("사진 저장 실패 — 다시 시도해주세요"); return; }
+  db.places.push({ id: uid(), name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), thumb, photos: photoIds });
+  if (!save()) { ddb.photos.bulkDelete(photoIds).catch(() => {}); renderAll(); return; }
   closeLayer("veilForm");
   renderPins();
   map.setView([lat, lng], Math.max(map.getZoom(), 13));
@@ -567,14 +616,23 @@ $("btnSave").onclick = () => {
 
 /* ───────── detail ───────── */
 let detailId = null;
-function openDetail(id) {
+async function openDetail(id) {
   const p = db.places.find((x) => x.id === id);
   if (!p) return;
   detailId = id;
   $("dTitle").textContent = p.name;
   $("dMeta").textContent = fmtDate(p.date);
   $("dNote").textContent = p.note || "";
-  $("dPhotos").innerHTML = (p.photos || []).filter((s) => typeof s === "string").map((s) => `<img src="${esc(s)}" alt="">`).join("");
+  const ids = (p.photos || []).filter((s) => typeof s === "string");
+  let srcs = ids.filter(isDataImg); // 구버전(사진이 통째로 들어있는 데이터) 호환
+  const keyIds = ids.filter((s) => !isDataImg(s));
+  if (keyIds.length) {
+    try {
+      const rows = await ddb.photos.bulkGet(keyIds);
+      srcs = srcs.concat(rows.filter((r) => r && isDataImg(r.data)).map((r) => r.data));
+    } catch (e) {}
+  }
+  $("dPhotos").innerHTML = srcs.map((s) => `<img src="${esc(s)}" alt="">`).join("");
   [...$("dPhotos").children].forEach((im) => (im.onclick = () => { $("lightboxImg").src = im.src; openLayer("lightbox"); }));
   map.closePopup();
   openLayer("detail");
@@ -583,8 +641,10 @@ $("dClose").onclick = () => closeLayer("detail");
 $("lightbox").onclick = () => closeLayer("lightbox");
 $("dDelete").onclick = () => {
   if (!confirm("이 추억을 정말 지울까요?")) return;
+  const p = db.places.find((x) => x.id === detailId);
   db.places = db.places.filter((x) => x.id !== detailId);
   if (!save()) { renderAll(); return; }
+  if (p) ddb.photos.bulkDelete((p.photos || []).filter((s) => !isDataImg(s))).catch(() => {});
   renderPins();
   closeLayer("detail");
   toast("지웠어요");
@@ -611,7 +671,10 @@ function renderBucket() {
       b.done = !b.done;
       b.doneDate = b.done ? localToday() : "";
       const ok = save(); renderBucket();
-      if (ok && b.done) toast("하나 더 이뤘네요! 🎉");
+      if (ok && b.done) {
+        toast("하나 더 이뤘네요! 🎉");
+        if (typeof confetti === "function") confetti({ particleCount: 90, spread: 70, origin: { y: 0.75 }, colors: ["#d95d6d", "#f7f1e5", "#7d9b76", "#ffffff"] });
+      }
     };
     li.querySelector(".bk-del").onclick = () => {
       if (!confirm("이 항목을 지울까요?")) return;
@@ -647,8 +710,17 @@ $("btnSettingsSave").onclick = () => {
   closeLayer("veilSettings");
   toast("저장했어요");
 };
-$("btnExport").onclick = () => {
-  const blob = new Blob([JSON.stringify(db)], { type: "application/json" });
+$("btnExport").onclick = async () => {
+  // 사진(IndexedDB)까지 포함한 완전 백업
+  const payload = { ...db, photoStore: {} };
+  try {
+    const ids = db.places.flatMap((p) => (p.photos || []).filter((s) => typeof s === "string" && !isDataImg(s)));
+    if (ids.length) {
+      const rows = await ddb.photos.bulkGet(ids);
+      rows.forEach((r) => { if (r && isDataImg(r.data)) payload.photoStore[r.id] = r.data; });
+    }
+  } catch (e) {}
+  const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `우리의지도_백업_${localToday()}.json`;
@@ -663,7 +735,7 @@ $("importFile").addEventListener("change", (e) => {
   const f = e.target.files[0];
   if (!f) return;
   const r = new FileReader();
-  r.onload = () => {
+  r.onload = async () => {
     let d;
     try {
       d = JSON.parse(r.result);
@@ -674,21 +746,38 @@ $("importFile").addEventListener("change", (e) => {
     const strOr = (v, fb) => (typeof v === "string" ? v : fb);
     const pids = new Set(db.places.map((p) => p.id));
     const bids = new Set(db.bucket.map((b) => b.id));
+    const store = (d.photoStore && typeof d.photoStore === "object") ? d.photoStore : {};
+    const photoQueue = []; // IndexedDB에 넣을 {id,data}
     // 레코드 단위 검증: 깨진 항목은 버리고, id 없으면 새로 부여
-    d.places.forEach((p) => {
-      if (!p || !Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) return;
+    for (const p of d.places) {
+      if (!p || !Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) continue;
       const id = strOr(p.id, "") || uid();
-      if (pids.has(id)) return;
+      if (pids.has(id)) continue;
       pids.add(id);
+      const photoIds = [];
+      let firstData = "";
+      (Array.isArray(p.photos) ? p.photos : []).forEach((s) => {
+        let data = "";
+        if (isDataImg(s)) data = s;                     // 구버전: 사진이 통째로
+        else if (typeof s === "string" && isDataImg(store[s])) data = store[s]; // 신버전: id → 저장소
+        if (!data) return;
+        const phId = uid();
+        photoQueue.push({ id: phId, data });
+        photoIds.push(phId);
+        if (!firstData) firstData = data;
+      });
+      let thumb = isDataImg(p.thumb) ? p.thumb : "";
+      if (!thumb && firstData) { try { thumb = await makeThumb(firstData); } catch (e) {} }
       db.places.push({
         id,
         name: (strOr(p.name, "").trim() || "이름 없는 곳").slice(0, 60),
         lat: +p.lat, lng: +p.lng,
         date: DATE_RE.test(p.date) ? p.date : "",
         note: strOr(p.note, "").slice(0, 120),
-        photos: (Array.isArray(p.photos) ? p.photos : []).filter((s) => typeof s === "string" && /^data:image\//.test(s)),
+        thumb,
+        photos: photoIds,
       });
-    });
+    }
     d.bucket.forEach((b) => {
       if (!b) return;
       const title = strOr(b.title, "").trim().slice(0, 80);
@@ -705,7 +794,13 @@ $("importFile").addEventListener("change", (e) => {
         start: DATE_RE.test(d.meta.start) ? d.meta.start : "",
       };
     }
-    if (!save()) { db = JSON.parse(before); renderAll(); alert("공간이 부족해서 불러오지 못했어요 😢"); return; }
+    try { if (photoQueue.length) await ddb.photos.bulkPut(photoQueue); }
+    catch (e) { db = JSON.parse(before); renderAll(); alert("사진 저장에 실패해서 불러오지 못했어요"); return; }
+    if (!save()) {
+      db = JSON.parse(before);
+      ddb.photos.bulkDelete(photoQueue.map((p) => p.id)).catch(() => {});
+      renderAll(); alert("공간이 부족해서 불러오지 못했어요 😢"); return;
+    }
     renderAll();
     toast("불러왔어요 — 합쳐서 보관 중");
   };
@@ -726,6 +821,22 @@ $("veilForm").addEventListener("click", (e) => {
 /* ───────── boot ───────── */
 function renderAll() { renderHeader(); renderPins(); renderBucket(); fitPins(); }
 try { renderAll(); } catch (e) { console.error(e); toast("일부 데이터를 표시하지 못했어요"); }
+/* 구버전 데이터 이관: localStorage에 통째로 든 사진 → IndexedDB (용량 해방) */
+(async function migratePhotos() {
+  const olds = db.places.filter((p) => (p.photos || []).some(isDataImg));
+  if (!olds.length) return;
+  for (const p of olds) {
+    const ids = [], queue = [];
+    for (const s of p.photos) {
+      if (isDataImg(s)) { const id = uid(); queue.push({ id, data: s }); ids.push(id); }
+      else if (typeof s === "string") ids.push(s);
+    }
+    try { await ddb.photos.bulkPut(queue); } catch (e) { return; } // 실패 시 원본 유지
+    if (!isDataImg(p.thumb) && queue[0]) { try { p.thumb = await makeThumb(queue[0].data); } catch (e) {} }
+    p.photos = ids;
+  }
+  if (save()) renderPins();
+})();
 if (!db.meta.start && !db.places.length && !db.bucket.length) {
   setTimeout(() => openLayer("veilSettings"), 700);
 }
