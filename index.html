@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<title>우리의 지도</title>
+<meta name="theme-color" content="#f7f1e5">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root{
+  --paper:#f7f1e5; --paper-deep:#efe6d3; --ink:#4a3f35; --ink-soft:#8a7d6f;
+  --rose:#d95d6d; --rose-deep:#c04858; --sage:#7d9b76; --white:#fffdf8;
+  --shadow:0 6px 18px rgba(74,63,53,.16);
+  --hand:'Nanum Pen Script',cursive; --body:'Gowun Dodum',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overscroll-behavior:none}
+body{
+  font-family:var(--body);color:var(--ink);background:var(--paper);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 .29 0 0 0 0 .25 0 0 0 0 .21 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  display:flex;flex-direction:column;position:fixed;inset:0;
+}
+/* ── header ─────────────────────────────── */
+header{
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 8px;text-align:center;position:relative;z-index:500;
+  background:linear-gradient(var(--paper) 75%,transparent);
+}
+header h1{font-family:var(--hand);font-size:1.9rem;line-height:1.1;letter-spacing:.02em}
+header h1 .amp{color:var(--rose);padding:0 .15em}
+#dday{font-family:var(--hand);font-size:1.15rem;color:var(--rose-deep);margin-top:-2px}
+#btnSettings{
+  position:absolute;right:10px;top:calc(env(safe-area-inset-top) + 12px);
+  border:none;background:none;font-size:1.25rem;color:var(--ink-soft);cursor:pointer;padding:6px;
+}
+/* ── main panes ─────────────────────────── */
+main{flex:1;position:relative;overflow:hidden}
+.pane{position:absolute;inset:0;display:none}
+.pane.active{display:block}
+#map{width:100%;height:100%;background:var(--paper-deep)}
+.leaflet-container{font-family:var(--body)}
+/* heart pin */
+.heart-pin svg{filter:drop-shadow(0 3px 4px rgba(74,63,53,.35));transform-origin:50% 90%;animation:pinDrop .45s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes pinDrop{from{transform:translateY(-26px) scale(.4);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+/* polaroid popup */
+.leaflet-popup-content-wrapper{background:var(--white);border-radius:4px;box-shadow:var(--shadow);padding:0}
+.leaflet-popup-content{margin:0;width:196px!important}
+.leaflet-popup-tip{background:var(--white)}
+.pol{padding:10px 10px 8px;position:relative;transform:rotate(-1.4deg)}
+.pol::before{
+  content:"";position:absolute;top:-7px;left:50%;transform:translateX(-50%) rotate(2deg);
+  width:74px;height:20px;background:rgba(224,200,150,.55);border-left:1px dashed rgba(255,255,255,.6);border-right:1px dashed rgba(255,255,255,.6);
+}
+.pol img{width:100%;height:128px;object-fit:cover;display:block;background:var(--paper-deep)}
+.pol .noimg{width:100%;height:82px;display:flex;align-items:center;justify-content:center;font-size:2rem;background:var(--paper-deep);color:var(--ink-soft)}
+.pol h3{font-family:var(--hand);font-size:1.3rem;margin-top:7px;line-height:1.15}
+.pol time{font-size:.72rem;color:var(--ink-soft)}
+.pol p{font-size:.83rem;margin-top:3px;word-break:keep-all}
+.pol .more{
+  display:block;width:100%;margin-top:8px;border:none;background:var(--paper-deep);
+  font-family:var(--hand);font-size:1.05rem;color:var(--rose-deep);padding:5px;border-radius:3px;cursor:pointer;
+}
+/* ── bucket pane ────────────────────────── */
+#paneBucket{overflow-y:auto;padding:6px 18px calc(140px + env(safe-area-inset-bottom))}
+.bucket-head{font-family:var(--hand);font-size:1.5rem;margin:10px 2px 2px;color:var(--ink)}
+.bucket-head small{font-size:.95rem;color:var(--ink-soft);margin-left:8px}
+#bucketList{list-style:none;margin-top:6px}
+#bucketList li{
+  display:flex;align-items:flex-start;gap:10px;padding:11px 4px;border-bottom:1px dashed rgba(138,125,111,.4);
+  animation:fadeUp .35s both;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.bk-check{
+  flex:none;width:26px;height:26px;border:2px solid var(--rose);border-radius:50%;background:none;cursor:pointer;
+  font-size:.95rem;line-height:1;color:transparent;transition:all .18s;margin-top:1px;
+}
+.bk-check.done{background:var(--rose);color:#fff;transform:scale(1.05)}
+.bk-body{flex:1;min-width:0}
+.bk-title{font-size:.97rem;word-break:keep-all;transition:color .2s}
+li.done .bk-title{color:var(--ink-soft);text-decoration:line-through;text-decoration-color:var(--rose)}
+.bk-date{font-family:var(--hand);font-size:1rem;color:var(--sage)}
+.bk-pin,.bk-del{border:none;background:none;cursor:pointer;font-size:1rem;padding:3px 5px;color:var(--ink-soft)}
+.bk-pin{color:var(--sage)}
+#bucketEmpty{margin-top:34px;text-align:center;color:var(--ink-soft);font-family:var(--hand);font-size:1.35rem;line-height:1.6}
+#bucketAdd{
+  position:fixed;left:16px;right:16px;bottom:calc(76px + env(safe-area-inset-bottom));display:none;gap:8px;z-index:600;
+}
+#bucketAdd.show{display:flex}
+#bucketAdd input{
+  flex:1;border:none;border-radius:24px;padding:13px 18px;font-family:var(--body);font-size:.95rem;
+  background:var(--white);box-shadow:var(--shadow);outline:none;color:var(--ink);
+}
+#bucketAdd button{
+  flex:none;width:48px;border:none;border-radius:50%;background:var(--rose);color:#fff;font-size:1.3rem;cursor:pointer;box-shadow:var(--shadow);
+}
+/* ── tab bar ────────────────────────────── */
+nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:700;display:flex;
+  background:var(--white);box-shadow:0 -4px 16px rgba(74,63,53,.12);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav button{
+  flex:1;border:none;background:none;font-family:var(--hand);font-size:1.25rem;color:var(--ink-soft);
+  padding:11px 0 9px;cursor:pointer;position:relative;transition:color .2s;
+}
+nav button.active{color:var(--rose-deep)}
+nav button.active::after{
+  content:"";position:absolute;left:50%;bottom:6px;transform:translateX(-50%);
+  width:26px;height:3px;border-radius:2px;background:var(--rose);
+}
+/* ── FAB ────────────────────────────────── */
+#fab{
+  position:fixed;right:18px;bottom:calc(72px + env(safe-area-inset-bottom));z-index:650;
+  width:56px;height:56px;border:none;border-radius:50%;background:var(--rose);color:#fff;
+  font-size:1.9rem;line-height:1;cursor:pointer;box-shadow:0 8px 20px rgba(217,93,109,.45);
+  transition:transform .18s;
+}
+#fab:active{transform:scale(.9)}
+/* ── sheets & modals ────────────────────── */
+.veil{position:fixed;inset:0;background:rgba(74,63,53,.42);z-index:800;display:none;align-items:flex-end;justify-content:center}
+.veil.show{display:flex}
+.sheet{
+  background:var(--paper);width:100%;max-width:520px;max-height:88%;overflow-y:auto;
+  border-radius:18px 18px 0 0;padding:20px 20px calc(24px + env(safe-area-inset-bottom));
+  animation:sheetUp .28s cubic-bezier(.2,1,.35,1) both;
+}
+@keyframes sheetUp{from{transform:translateY(60%)}to{transform:none}}
+.sheet h2{font-family:var(--hand);font-size:1.6rem;margin-bottom:12px}
+.sheet label{display:block;font-size:.8rem;color:var(--ink-soft);margin:12px 2px 4px}
+.sheet input[type=text],.sheet input[type=date],.sheet input[type=search]{
+  width:100%;border:1.5px solid rgba(138,125,111,.35);border-radius:9px;background:var(--white);
+  padding:11px 12px;font-family:var(--body);font-size:.95rem;color:var(--ink);outline:none;
+}
+.sheet input:focus{border-color:var(--rose)}
+.btn{
+  display:inline-block;border:none;border-radius:10px;padding:12px 16px;cursor:pointer;
+  font-family:var(--hand);font-size:1.25rem;line-height:1;
+}
+.btn-rose{background:var(--rose);color:#fff;width:100%;margin-top:16px}
+.btn-ghost{background:var(--paper-deep);color:var(--ink);width:100%;margin-top:8px}
+.btn-line{background:none;border:1.5px dashed var(--ink-soft);color:var(--ink-soft);width:100%;margin-top:8px}
+#searchResults{list-style:none;margin-top:8px}
+#searchResults li{
+  padding:10px 8px;border-bottom:1px dashed rgba(138,125,111,.35);cursor:pointer;font-size:.9rem;word-break:keep-all;
+}
+#searchResults li b{display:block;font-size:.95rem}
+#searchResults li span{color:var(--ink-soft);font-size:.78rem}
+#photoRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+#photoRow .ph{position:relative;width:64px;height:64px;border-radius:6px;overflow:hidden;box-shadow:var(--shadow)}
+#photoRow .ph img{width:100%;height:100%;object-fit:cover}
+#photoRow .ph button{
+  position:absolute;top:1px;right:1px;width:20px;height:20px;border:none;border-radius:50%;
+  background:rgba(74,63,53,.72);color:#fff;font-size:.7rem;cursor:pointer;line-height:1;
+}
+#photoAdd{
+  width:64px;height:64px;border:1.5px dashed var(--ink-soft);border-radius:6px;background:none;
+  color:var(--ink-soft);font-size:1.4rem;cursor:pointer;
+}
+/* detail modal */
+.modal{
+  position:fixed;inset:0;z-index:900;background:var(--paper);display:none;flex-direction:column;overflow-y:auto;
+  padding:calc(env(safe-area-inset-top) + 14px) 18px calc(30px + env(safe-area-inset-bottom));
+}
+.modal.show{display:flex}
+.modal .close{position:sticky;top:0;align-self:flex-end;border:none;background:var(--paper-deep);border-radius:50%;width:36px;height:36px;font-size:1rem;cursor:pointer;color:var(--ink)}
+#dTitle{font-family:var(--hand);font-size:2rem;margin-top:4px}
+#dMeta{font-family:var(--hand);font-size:1.15rem;color:var(--rose-deep)}
+#dNote{margin-top:10px;font-size:.95rem;line-height:1.6;word-break:keep-all}
+#dPhotos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px}
+#dPhotos img{width:100%;border-radius:4px;box-shadow:var(--shadow);background:var(--white);padding:6px 6px 20px;cursor:zoom-in}
+#dPhotos img:nth-child(odd){transform:rotate(-1.6deg)}
+#dPhotos img:nth-child(even){transform:rotate(1.3deg)}
+#dDelete{margin-top:26px;align-self:center;background:none;border:none;color:var(--ink-soft);font-size:.8rem;text-decoration:underline;cursor:pointer}
+/* lightbox */
+#lightbox{position:fixed;inset:0;z-index:1000;background:rgba(30,25,20,.93);display:none;align-items:center;justify-content:center}
+#lightbox.show{display:flex}
+#lightbox img{max-width:96%;max-height:92%;border-radius:4px}
+/* toast */
+#toast{
+  position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:var(--paper);padding:10px 18px;border-radius:22px;font-size:.86rem;
+  opacity:0;pointer-events:none;transition:all .3s;z-index:1100;white-space:nowrap;
+}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* pick-on-map hint */
+#pickHint{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:500;display:none;
+  background:var(--ink);color:var(--paper);font-family:var(--hand);font-size:1.15rem;
+  padding:8px 16px;border-radius:20px;box-shadow:var(--shadow);white-space:nowrap;
+}
+#pickHint.show{display:block}
+#pickHint{cursor:pointer}
+@media (min-width:640px){
+  .veil{align-items:center}
+  .sheet{border-radius:18px;animation:none}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="names">우리<span class="amp">♥</span>지도</h1>
+  <div id="dday"></div>
+  <button id="btnSettings" aria-label="설정">⚙</button>
+</header>
+
+<main>
+  <div class="pane active" id="paneMap">
+    <div id="map"></div>
+    <div id="pickHint">지도를 눌러 위치를 콕! (여기를 누르면 취소)</div>
+  </div>
+  <div class="pane" id="paneBucket">
+    <div class="bucket-head">우리의 버킷리스트 <small id="bucketCount"></small></div>
+    <ul id="bucketList"></ul>
+    <div id="bucketEmpty">아직 비어있어요.<br>둘이 하고 싶은 걸 적어볼까요?</div>
+  </div>
+</main>
+
+<div id="bucketAdd">
+  <input id="bucketInput" type="text" maxlength="80" placeholder="예) 벚꽃 보러 가기, 첫 캠핑…">
+  <button id="bucketSubmit" aria-label="추가">+</button>
+</div>
+
+<button id="fab" aria-label="장소 추가">+</button>
+
+<nav>
+  <button id="tabMap" class="active">🗺 지도</button>
+  <button id="tabBucket">📝 버킷리스트</button>
+</nav>
+
+<!-- add place: step1 search -->
+<div class="veil" id="veilSearch">
+  <div class="sheet">
+    <h2>어디를 다녀왔나요?</h2>
+    <input id="searchInput" type="search" placeholder="장소 이름 검색 (예: 남산타워)">
+    <ul id="searchResults"></ul>
+    <button class="btn btn-line" id="btnPickMap">🗺 지도에서 직접 위치 찍기</button>
+    <button class="btn btn-ghost" id="btnSearchCancel">닫기</button>
+  </div>
+</div>
+
+<!-- add place: step2 form -->
+<div class="veil" id="veilForm">
+  <div class="sheet">
+    <h2 id="formTitle">추억 남기기</h2>
+    <label>장소 이름</label>
+    <input type="text" id="fName" maxlength="60" placeholder="우리만 아는 이름도 좋아요">
+    <label>다녀온 날</label>
+    <input type="date" id="fDate">
+    <label>한 줄 기록</label>
+    <input type="text" id="fNote" maxlength="120" placeholder="그날의 한 줄">
+    <label>사진</label>
+    <div id="photoRow"><button id="photoAdd">+</button></div>
+    <input type="file" id="photoFile" accept="image/*" multiple hidden>
+    <button class="btn btn-rose" id="btnSave">이 곳을 우리 지도에 ♥</button>
+    <button class="btn btn-ghost" id="btnFormCancel">취소</button>
+  </div>
+</div>
+
+<!-- settings -->
+<div class="veil" id="veilSettings">
+  <div class="sheet">
+    <h2>우리 이야기 설정</h2>
+    <label>내 이름</label><input type="text" id="sNameA" maxlength="12" placeholder="민재">
+    <label>상대 이름</label><input type="text" id="sNameB" maxlength="12" placeholder="이름">
+    <label>사귄 날 (D-day 기준)</label><input type="date" id="sStart">
+    <button class="btn btn-rose" id="btnSettingsSave">저장</button>
+    <button class="btn btn-line" id="btnExport">📤 데이터 백업 (파일 저장)</button>
+    <button class="btn btn-line" id="btnImport">📥 백업 불러오기</button>
+    <input type="file" id="importFile" accept=".json" hidden>
+    <button class="btn btn-ghost" id="btnSettingsClose">닫기</button>
+  </div>
+</div>
+
+<!-- place detail -->
+<div class="modal" id="detail">
+  <button class="close" id="dClose">✕</button>
+  <h2 id="dTitle"></h2>
+  <div id="dMeta"></div>
+  <p id="dNote"></p>
+  <div id="dPhotos"></div>
+  <button id="dDelete">이 기록 지우기</button>
+</div>
+
+<div id="lightbox"><img id="lightboxImg" alt=""></div>
+<div id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=32f3dd6b67ffcbb366a6d77b4d89552b&libraries=services&autoload=false"></script>
+<script>
+"use strict";
+/* ───────── state ───────── */
+const LS_KEY = "cm_v1";
+const $ = (id) => document.getElementById(id);
+let db = load();
+let lastGood = null;
+function load() {
+  const raw = localStorage.getItem(LS_KEY);
+  try {
+    const d = JSON.parse(raw);
+    if (d && Array.isArray(d.places) && Array.isArray(d.bucket)) { lastGood = raw; return d; }
+    if (raw != null) throw 0;
+  } catch (e) {
+    // 깨진 데이터는 지우지 말고 복구 키에 보존
+    try {
+      if (raw != null && !localStorage.getItem(LS_KEY + "_recovery")) {
+        localStorage.setItem(LS_KEY + "_recovery", raw);
+        alert("이전 데이터를 읽지 못해 복구본으로 따로 보관해뒀어요.");
+      }
+    } catch (_) {}
+  }
+  return { meta: { a: "", b: "", start: "" }, places: [], bucket: [] };
+}
+function save() {
+  const next = JSON.stringify(db);
+  try {
+    localStorage.setItem(LS_KEY, next);
+    lastGood = next;
+    return true;
+  } catch (e) {
+    if (lastGood !== null) db = JSON.parse(lastGood); // 메모리 상태를 마지막 정상 저장본으로 롤백
+    alert("저장 공간이 가득 찼어요 😢\n설정 → 백업으로 파일을 저장한 뒤, 오래된 사진 몇 장을 지워주세요.");
+    return false;
+  }
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const fmtDate = (iso) => { if (!DATE_RE.test(iso || "")) return ""; const [y, m, d] = iso.split("-"); return `${y}. ${+m}. ${+d}.`; };
+const localToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+/* 오버레이 레이어 스택 + 안드로이드 뒤로가기 지원 */
+const layers = [];
+let historyArmed = false, ignorePop = false;
+function openLayer(id) {
+  $(id).classList.add("show");
+  layers.push(id);
+  if (!historyArmed) { history.pushState({ cm: 1 }, ""); historyArmed = true; }
+}
+function closeLayer(id) {
+  const i = layers.lastIndexOf(id);
+  if (i >= 0) layers.splice(i, 1);
+  $(id).classList.remove("show");
+  if (id === "veilForm") draft = null;
+  if (!layers.length && historyArmed) { ignorePop = true; history.back(); historyArmed = false; }
+}
+window.addEventListener("popstate", () => {
+  if (ignorePop) { ignorePop = false; return; }
+  historyArmed = false;
+  const id = layers.pop();
+  if (id) { $(id).classList.remove("show"); if (id === "veilForm") draft = null; }
+  if (layers.length) { history.pushState({ cm: 1 }, ""); historyArmed = true; }
+});
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove("show"), 2200); }
+
+/* ───────── header / d-day ───────── */
+function renderHeader() {
+  const { a, b, start } = db.meta;
+  $("names").innerHTML = a && b ? `${esc(a)}<span class="amp">♥</span>${esc(b)}` : `우리<span class="amp">♥</span>지도`;
+  if (start) {
+    const days = Math.floor((Date.now() - new Date(start + "T00:00:00")) / 864e5) + 1;
+    $("dday").textContent = days > 0 ? `함께한 지 ${days.toLocaleString()}일` : "";
+  } else $("dday").textContent = "";
+}
+
+/* ───────── map (Leaflet: 전세계 지도) + Kakao(국내 장소검색) ───────── */
+const map = L.map("map", { zoomControl: false }).setView([36.5, 127.8], 7);
+L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+  maxZoom: 20, attribution: '&copy; OpenStreetMap &copy; CARTO'
+}).addTo(map);
+const pinLayer = L.layerGroup().addTo(map);
+const heartIcon = L.divIcon({
+  className: "heart-pin", iconSize: [34, 34], iconAnchor: [17, 30], popupAnchor: [0, -26],
+  html: `<svg viewBox="0 0 32 32" width="34" height="34"><path d="M16 29C8 21.5 3 16.6 3 11.2 3 7 6.2 4 10 4c2.4 0 4.7 1.3 6 3.4C17.3 5.3 19.6 4 22 4c3.8 0 7 3 7 7.2 0 5.4-5 10.3-13 17.8z" fill="#d95d6d" stroke="#fffdf8" stroke-width="2"/></svg>`
+});
+let ps = null; // Kakao 장소검색 (지도 없이 검색만 사용)
+try { kakao.maps.load(() => { ps = new kakao.maps.services.Places(); }); } catch (e) {}
+function renderPins() {
+  pinLayer.clearLayers();
+  db.places.forEach((p) => {
+    if (!Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) return;
+    const m = L.marker([+p.lat, +p.lng], { icon: heartIcon }).addTo(pinLayer);
+    const ph = p.photos && typeof p.photos[0] === "string" ? p.photos[0] : "";
+    const img = ph ? `<img src="${esc(ph)}" alt="">` : `<div class="noimg">🖼</div>`;
+    m.bindPopup(
+      `<div class="pol">${img}<h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
+      (p.note ? `<p>${esc(p.note)}</p>` : "") +
+      `<button class="more" data-id="${esc(p.id)}">자세히 보기</button></div>`,
+      { closeButton: false }
+    );
+  });
+}
+map.on("popupopen", (e) => {
+  const btn = e.popup.getElement().querySelector(".more");
+  if (btn) btn.onclick = () => openDetail(btn.dataset.id);
+});
+function fitPins() {
+  const pts = db.places.filter((p) => Number.isFinite(+p.lat) && Number.isFinite(+p.lng)).map((p) => [+p.lat, +p.lng]);
+  if (!pts.length) return;
+  map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 13 });
+}
+
+/* ───────── tabs ───────── */
+function switchTab(which) {
+  const isMap = which === "map";
+  $("paneMap").classList.toggle("active", isMap);
+  $("paneBucket").classList.toggle("active", !isMap);
+  $("tabMap").classList.toggle("active", isMap);
+  $("tabBucket").classList.toggle("active", !isMap);
+  $("bucketAdd").classList.toggle("show", !isMap);
+  $("fab").style.display = isMap ? "" : "none";
+  if (isMap) setTimeout(() => map.invalidateSize(), 60);
+}
+$("tabMap").onclick = () => switchTab("map");
+$("tabBucket").onclick = () => switchTab("bucket");
+
+/* ───────── add place flow ───────── */
+let draft = null; // {lat,lng,name}
+let picking = false;
+$("fab").onclick = () => { openLayer("veilSearch"); $("searchInput").focus(); };
+$("btnSearchCancel").onclick = () => closeLayer("veilSearch");
+
+let searchTm = null;
+$("searchInput").addEventListener("input", (e) => {
+  clearTimeout(searchTm);
+  const q = e.target.value.trim();
+  if (q.length < 2) { $("searchResults").innerHTML = ""; return; }
+  searchTm = setTimeout(() => doSearch(q), 450);
+});
+/* 검색: 카카오(국내 상호명 강력) 먼저 → 결과 없으면 전세계 검색(Nominatim) */
+function showResults(items) { // items: [{name, addr, lat, lng}]
+  if (!items.length) {
+    $("searchResults").innerHTML = `<li><span>결과가 없어요 — 아래 '지도에서 직접 찍기'를 써보세요</span></li>`;
+    return;
+  }
+  $("searchResults").innerHTML = items.map((x, i) =>
+    `<li data-i="${i}"><b>${esc(x.name)}</b><span>${esc(x.addr)}</span></li>`
+  ).join("");
+  [...$("searchResults").children].forEach((li) => {
+    li.onclick = () => {
+      const x = items[+li.dataset.i];
+      openForm({ lat: x.lat, lng: x.lng, name: x.name });
+    };
+  });
+}
+async function searchGlobal(q) {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/search?format=json&accept-language=ko&limit=6&q=${encodeURIComponent(q)}`);
+    const rows = await r.json();
+    showResults(rows.map((x) => ({
+      name: x.display_name.split(",")[0],
+      addr: x.display_name.split(",").slice(1, 4).join(","),
+      lat: +x.lat, lng: +x.lon,
+    })));
+  } catch (e) {
+    $("searchResults").innerHTML = `<li><span>검색 실패 — 인터넷 연결을 확인해주세요</span></li>`;
+  }
+}
+function doSearch(q) {
+  $("searchResults").innerHTML = `<li><span>찾는 중…</span></li>`;
+  if (!ps) { void searchGlobal(q); return; }
+  ps.keywordSearch(q, (rows, status) => {
+    if (status === kakao.maps.services.Status.OK && rows.length) {
+      showResults(rows.slice(0, 6).map((x) => ({
+        name: x.place_name,
+        addr: x.road_address_name || x.address_name || "",
+        lat: +x.y, lng: +x.x,
+      })));
+    } else {
+      void searchGlobal(q); // 해외 장소는 전세계 검색으로
+    }
+  });
+}
+function startPick() {
+  picking = true;
+  $("pickHint").classList.add("show");
+  $("fab").style.display = "none";
+  map.doubleClickZoom.disable();
+}
+function endPick() {
+  picking = false;
+  $("pickHint").classList.remove("show");
+  $("fab").style.display = "";
+  map.doubleClickZoom.enable();
+}
+$("btnPickMap").onclick = () => {
+  closeLayer("veilSearch");
+  switchTab("map");
+  startPick();
+};
+$("pickHint").onclick = endPick; // 힌트 탭 = 취소
+map.on("click", (e) => {
+  if (!picking) return;
+  endPick();
+  openForm({ lat: e.latlng.lat, lng: e.latlng.lng, name: "" });
+});
+
+function openForm(d) {
+  endPick();
+  draft = { ...d, photos: [] };
+  if (layers.includes("veilSearch")) closeLayer("veilSearch");
+  $("fName").value = d.name || "";
+  $("fDate").value = localToday();
+  $("fNote").value = "";
+  renderPhotoRow();
+  openLayer("veilForm");
+}
+$("btnFormCancel").onclick = () => closeLayer("veilForm");
+
+/* photos */
+$("photoAdd").onclick = () => $("photoFile").click();
+$("photoFile").addEventListener("change", async (e) => {
+  const files = [...e.target.files].slice(0, 8);
+  for (const f of files) {
+    try { draft.photos.push(await compress(f)); } catch (err) { toast("사진 처리 실패"); }
+  }
+  e.target.value = "";
+  renderPhotoRow();
+});
+function renderPhotoRow() {
+  const row = $("photoRow");
+  row.querySelectorAll(".ph").forEach((n) => n.remove());
+  draft.photos.forEach((src, i) => {
+    const d = document.createElement("div");
+    d.className = "ph";
+    d.innerHTML = `<img src="${src}" alt=""><button aria-label="삭제">✕</button>`;
+    d.querySelector("button").onclick = () => { draft.photos.splice(i, 1); renderPhotoRow(); };
+    row.insertBefore(d, $("photoAdd"));
+  });
+}
+function compress(file) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 1000;
+      let { width: w, height: h } = img;
+      if (Math.max(w, h) > MAX) { const k = MAX / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      c.getContext("2d").drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", 0.78));
+    };
+    img.onerror = rej;
+    img.src = url;
+  });
+}
+
+$("btnSave").onclick = () => {
+  const name = $("fName").value.trim();
+  if (!name) { toast("장소 이름을 적어주세요"); return; }
+  const { lat, lng } = draft;
+  db.places.push({ id: uid(), name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), photos: draft.photos });
+  if (!save()) { renderAll(); return; }
+  closeLayer("veilForm");
+  renderPins();
+  map.setView([lat, lng], Math.max(map.getZoom(), 13));
+  toast("우리 지도에 추가됐어요 ♥");
+};
+
+/* ───────── detail ───────── */
+let detailId = null;
+function openDetail(id) {
+  const p = db.places.find((x) => x.id === id);
+  if (!p) return;
+  detailId = id;
+  $("dTitle").textContent = p.name;
+  $("dMeta").textContent = fmtDate(p.date);
+  $("dNote").textContent = p.note || "";
+  $("dPhotos").innerHTML = (p.photos || []).filter((s) => typeof s === "string").map((s) => `<img src="${esc(s)}" alt="">`).join("");
+  [...$("dPhotos").children].forEach((im) => (im.onclick = () => { $("lightboxImg").src = im.src; openLayer("lightbox"); }));
+  map.closePopup();
+  openLayer("detail");
+}
+$("dClose").onclick = () => closeLayer("detail");
+$("lightbox").onclick = () => closeLayer("lightbox");
+$("dDelete").onclick = () => {
+  if (!confirm("이 추억을 정말 지울까요?")) return;
+  db.places = db.places.filter((x) => x.id !== detailId);
+  if (!save()) { renderAll(); return; }
+  renderPins();
+  closeLayer("detail");
+  toast("지웠어요");
+};
+
+/* ───────── bucket ───────── */
+function renderBucket() {
+  const ul = $("bucketList");
+  const items = db.bucket;
+  $("bucketEmpty").style.display = items.length ? "none" : "";
+  $("bucketCount").textContent = items.length ? `${items.filter((b) => b.done).length}/${items.length} 이뤘어요` : "";
+  ul.innerHTML = "";
+  items.forEach((b) => {
+    const li = document.createElement("li");
+    li.className = b.done ? "done" : "";
+    li.innerHTML =
+      `<button class="bk-check ${b.done ? "done" : ""}" aria-label="완료">♥</button>` +
+      `<div class="bk-body"><div class="bk-title">${esc(b.title)}</div>` +
+      (b.done && b.doneDate ? `<div class="bk-date">${fmtDate(b.doneDate)} 함께 이룸 ♥</div>` : "") +
+      `</div>` +
+      (b.done ? `<button class="bk-pin" title="지도에 기록">📍</button>` : "") +
+      `<button class="bk-del" aria-label="삭제">✕</button>`;
+    li.querySelector(".bk-check").onclick = () => {
+      b.done = !b.done;
+      b.doneDate = b.done ? localToday() : "";
+      const ok = save(); renderBucket();
+      if (ok && b.done) toast("하나 더 이뤘네요! 🎉");
+    };
+    li.querySelector(".bk-del").onclick = () => {
+      if (!confirm("이 항목을 지울까요?")) return;
+      db.bucket = db.bucket.filter((x) => x.id !== b.id);
+      save(); renderBucket();
+    };
+    const pin = li.querySelector(".bk-pin");
+    if (pin) pin.onclick = () => { switchTab("map"); openLayer("veilSearch"); $("searchInput").value = b.title; doSearch(b.title); };
+    ul.appendChild(li);
+  });
+}
+function addBucket() {
+  const v = $("bucketInput").value.trim();
+  if (!v) return;
+  db.bucket.unshift({ id: uid(), title: v, done: false, doneDate: "" });
+  if (!save()) { renderBucket(); return; }
+  $("bucketInput").value = "";
+  renderBucket();
+}
+$("bucketSubmit").onclick = addBucket;
+$("bucketInput").addEventListener("keydown", (e) => { if (e.key === "Enter") addBucket(); });
+
+/* ───────── settings ───────── */
+$("btnSettings").onclick = () => {
+  $("sNameA").value = db.meta.a; $("sNameB").value = db.meta.b; $("sStart").value = db.meta.start;
+  openLayer("veilSettings");
+};
+$("btnSettingsClose").onclick = () => closeLayer("veilSettings");
+$("btnSettingsSave").onclick = () => {
+  db.meta = { a: $("sNameA").value.trim(), b: $("sNameB").value.trim(), start: $("sStart").value };
+  if (!save()) { renderHeader(); return; }
+  renderHeader();
+  closeLayer("veilSettings");
+  toast("저장했어요");
+};
+$("btnExport").onclick = () => {
+  const blob = new Blob([JSON.stringify(db)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `우리의지도_백업_${localToday()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast("파일이 저장됐는지 꼭 확인해주세요");
+};
+$("btnImport").onclick = () => $("importFile").click();
+$("importFile").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    let d;
+    try {
+      d = JSON.parse(r.result);
+      if (!d || !Array.isArray(d.places) || !Array.isArray(d.bucket)) throw 0;
+    } catch (err) { alert("백업 파일이 아니에요"); return; }
+
+    const before = JSON.stringify(db);
+    const strOr = (v, fb) => (typeof v === "string" ? v : fb);
+    const pids = new Set(db.places.map((p) => p.id));
+    const bids = new Set(db.bucket.map((b) => b.id));
+    // 레코드 단위 검증: 깨진 항목은 버리고, id 없으면 새로 부여
+    d.places.forEach((p) => {
+      if (!p || !Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) return;
+      const id = strOr(p.id, "") || uid();
+      if (pids.has(id)) return;
+      pids.add(id);
+      db.places.push({
+        id,
+        name: (strOr(p.name, "").trim() || "이름 없는 곳").slice(0, 60),
+        lat: +p.lat, lng: +p.lng,
+        date: DATE_RE.test(p.date) ? p.date : "",
+        note: strOr(p.note, "").slice(0, 120),
+        photos: (Array.isArray(p.photos) ? p.photos : []).filter((s) => typeof s === "string" && /^data:image\//.test(s)),
+      });
+    });
+    d.bucket.forEach((b) => {
+      if (!b) return;
+      const title = strOr(b.title, "").trim().slice(0, 80);
+      if (!title) return;
+      const id = strOr(b.id, "") || uid();
+      if (bids.has(id)) return;
+      bids.add(id);
+      db.bucket.push({ id, title, done: !!b.done, doneDate: DATE_RE.test(b.doneDate) ? b.doneDate : "" });
+    });
+    if (!db.meta.a && d.meta && typeof d.meta === "object") {
+      db.meta = {
+        a: strOr(d.meta.a, "").slice(0, 12),
+        b: strOr(d.meta.b, "").slice(0, 12),
+        start: DATE_RE.test(d.meta.start) ? d.meta.start : "",
+      };
+    }
+    if (!save()) { db = JSON.parse(before); renderAll(); alert("공간이 부족해서 불러오지 못했어요 😢"); return; }
+    renderAll();
+    toast("불러왔어요 — 합쳐서 보관 중");
+  };
+  r.readAsText(f);
+  e.target.value = "";
+});
+
+/* veil 바깥 탭으로 닫기 (작성 중인 폼은 확인 후) */
+["veilSearch", "veilSettings"].forEach((id) => {
+  $(id).addEventListener("click", (e) => { if (e.target === $(id)) closeLayer(id); });
+});
+$("veilForm").addEventListener("click", (e) => {
+  if (e.target !== $("veilForm")) return;
+  const dirty = $("fName").value.trim() || $("fNote").value.trim() || (draft && draft.photos.length);
+  if (!dirty || confirm("작성 중인 기록을 버릴까요?")) closeLayer("veilForm");
+});
+
+/* ───────── boot ───────── */
+function renderAll() { renderHeader(); renderPins(); renderBucket(); fitPins(); }
+try { renderAll(); } catch (e) { console.error(e); toast("일부 데이터를 표시하지 못했어요"); }
+if (!db.meta.start && !db.places.length && !db.bucket.length) {
+  setTimeout(() => openLayer("veilSettings"), 700);
+}
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>

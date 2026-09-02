@@ -1,0 +1,13 @@
+{
+  "name": "우리의 지도",
+  "short_name": "우리의 지도",
+  "description": "둘이 함께 간 곳과 버킷리스트를 모으는 우리만의 아카이브",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f7f1e5",
+  "theme_color": "#f7f1e5",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
