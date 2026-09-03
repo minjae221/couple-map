@@ -10,11 +10,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
 /* 하트 클러스터 (핀 뭉침) */
 .heart-cluster{
@@ -25,31 +22,34 @@
 </style>
 <style>
 :root{
-  --paper:#fff7ee; --paper-deep:#ffefe2; --ink:#5b4a40; --ink-soft:#a08b7c;
-  --rose:#ff8fa3; --rose-deep:#f26d85; --sage:#7fc8a9; --lav:#c9b8f0; --white:#ffffff;
-  --shadow:0 8px 22px rgba(242,109,133,.14);
-  --hand:'Jua',sans-serif; --body:'Gowun Dodum',sans-serif;
+  --paper:#fbfaf9; --paper-deep:#f3f1ef; --ink:#1c1917; --ink-soft:#8a8580;
+  --rose:#f43f5e; --rose-deep:#e11d48; --sage:#10b981; --lav:#8b5cf6; --white:#ffffff;
+  --glass:rgba(255,255,255,.66); --glass-line:rgba(255,255,255,.75);
+  --shadow:0 8px 32px rgba(28,25,23,.09);
+  --hand:'Pretendard Variable',Pretendard,sans-serif; --body:'Pretendard Variable',Pretendard,sans-serif;
   --squish:cubic-bezier(.34,1.56,.64,1);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overscroll-behavior:none}
 body{
-  font-family:var(--body);color:var(--ink);
-  background:linear-gradient(180deg,#fff7ee 0%,#fff0e6 55%,#ffe8dc 100%);
+  font-family:var(--body);color:var(--ink);background:var(--paper);
   display:flex;flex-direction:column;position:fixed;inset:0;
+  letter-spacing:-.01em;
 }
-/* 몽글 blob 배경 */
+/* aurora 배경 — 은은하게 흐르는 색 번짐 (Stripe/Linear 계열) */
 body::before{
-  content:"";position:fixed;width:340px;height:340px;z-index:-1;
-  border-radius:46% 54% 58% 42%/52% 44% 56% 48%;
-  background:radial-gradient(circle at 35% 35%,#ffd8e1,#ffc7d4);
-  top:-130px;right:-110px;opacity:.55;filter:blur(4px);
+  content:"";position:fixed;inset:-30%;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(38% 30% at 22% 18%,rgba(244,63,94,.16),transparent 70%),
+    radial-gradient(34% 30% at 82% 12%,rgba(139,92,246,.14),transparent 70%),
+    radial-gradient(40% 34% at 78% 86%,rgba(56,189,248,.13),transparent 70%),
+    radial-gradient(30% 26% at 14% 84%,rgba(251,191,36,.10),transparent 70%);
+  filter:blur(40px);
+  animation:aurora 24s ease-in-out infinite alternate;
 }
-body::after{
-  content:"";position:fixed;width:300px;height:300px;z-index:-1;
-  border-radius:52% 48% 44% 56%/48% 55% 45% 52%;
-  background:radial-gradient(circle at 40% 40%,#e8dffb,#d9cdf6);
-  bottom:-120px;left:-100px;opacity:.5;filter:blur(6px);
+@keyframes aurora{
+  from{transform:translate3d(-2%,-1%,0) scale(1)}
+  to{transform:translate3d(2%,2%,0) scale(1.06)}
 }
 /* ── header ─────────────────────────────── */
 header{
@@ -251,34 +251,100 @@ nav button.active::after{
   .veil{align-items:center}
   .sheet{border-radius:28px;animation:none}
 }
-/* ── 몽글 테마: 둥글게 + 말랑 모션 ── */
+/* ── 2026 Liquid Glass 테마 ── */
 button{transition:transform .16s var(--squish)}
-button:active{transform:scale(.93)}
-.sheet{border-radius:28px 28px 0 0}
-.sheet input[type=text],.sheet input[type=date],.sheet input[type=search]{border-radius:16px;border-color:rgba(160,139,124,.28)}
-.btn{border-radius:999px}
-#fab{background:linear-gradient(135deg,#ff9fb0,#f26d85);box-shadow:0 10px 24px rgba(242,109,133,.45)}
-nav{border-radius:22px 22px 0 0;box-shadow:0 -6px 20px rgba(242,109,133,.13)}
-nav button.active::after{width:34px;height:4px;border-radius:3px}
-.leaflet-popup-content-wrapper{border-radius:18px}
-.pol::before{background:rgba(255,183,197,.7)}
-.pol img{border-radius:12px}
-.pol .more{border-radius:999px;background:#ffe9ee}
-.tl-card{border-radius:22px}
-.tl-card img,.tl-card .noimg{border-radius:14px}
-#tlStats span{border-radius:999px}
-#toast{border-radius:999px;background:var(--rose-deep)}
-#pickHint{border-radius:999px;background:var(--rose-deep)}
-#bucketAdd input{border-radius:999px}
-.bk-check{border-width:2.5px}
-.bk-date{color:var(--sage)}
+button:active{transform:scale(.96)}
+/* 타이포: 손글씨 대신 굵기 대비 */
+header h1{font-weight:800;font-size:1.45rem;letter-spacing:-.03em}
+header h1 .amp{color:var(--rose)}
+#dday{font-weight:600;font-size:.82rem;color:var(--ink-soft);margin-top:2px}
+#dday:not(:empty)::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--rose);margin:0 6px 1px 0}
+header{background:linear-gradient(var(--paper) 60%,transparent)}
+.sheet h2,.bucket-head,.tl-month,#dTitle{font-weight:800;letter-spacing:-.02em}
+.sheet h2{font-size:1.25rem}
+.bucket-head{font-size:1.15rem}
+.tl-month{font-size:.95rem;color:var(--ink-soft);text-transform:none;margin-top:24px}
+#dTitle{font-size:1.6rem}
+#dMeta{font-weight:600;font-size:.85rem;color:var(--rose-deep)}
+.pol h3{font-weight:700;font-size:1rem;letter-spacing:-.01em}
+nav button,.btn,#pickHint,#tlStats,#lbCount,.bk-date,#bucketEmpty,#tlEmpty{font-weight:600}
+#bucketEmpty,#tlEmpty{font-size:.95rem;color:var(--ink-soft);line-height:1.7}
+/* 플로팅 글래스 탭바 */
+nav{
+  left:14px;right:14px;bottom:calc(10px + env(safe-area-inset-bottom));
+  border-radius:999px;padding:6px;padding-bottom:6px;gap:4px;
+  background:var(--glass);border:1px solid var(--glass-line);
+  backdrop-filter:blur(20px) saturate(1.6);-webkit-backdrop-filter:blur(20px) saturate(1.6);
+  box-shadow:var(--shadow);
+}
+nav button{font-size:.85rem;border-radius:999px;padding:11px 0}
+nav button.active{background:var(--ink);color:#fff}
+nav button.active::after{display:none}
+#fab{
+  bottom:calc(84px + env(safe-area-inset-bottom));width:54px;height:54px;
+  background:var(--ink);box-shadow:0 10px 26px rgba(28,25,23,.32);font-weight:300;
+}
+#bucketAdd{bottom:calc(84px + env(safe-area-inset-bottom))}
+/* 글래스 카드·시트 */
+.sheet{
+  border-radius:28px 28px 0 0;background:rgba(251,250,249,.86);
+  backdrop-filter:blur(24px) saturate(1.5);-webkit-backdrop-filter:blur(24px) saturate(1.5);
+  border:1px solid var(--glass-line);
+}
+.sheet input[type=text],.sheet input[type=date],.sheet input[type=search]{
+  border-radius:14px;border:1px solid rgba(28,25,23,.1);background:#fff;font-size:.92rem;
+}
+.sheet input:focus{border-color:var(--rose);box-shadow:0 0 0 3px rgba(244,63,94,.12)}
+.sheet label{font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}
+.btn{border-radius:999px;font-weight:700;font-size:.95rem;padding:14px 16px}
+.btn-rose{background:var(--ink);color:#fff}
+.btn-ghost{background:rgba(28,25,23,.06)}
+.btn-line{border:1.5px dashed rgba(28,25,23,.25)}
+.tl-card{
+  border-radius:20px;background:var(--glass);border:1px solid var(--glass-line);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+}
+.tl-card h3{font-weight:700;font-size:1rem}
+.tl-card img,.tl-card .noimg{border-radius:12px}
+#tlStats span{
+  border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);font-size:.8rem;
+}
+#bucketAdd input{
+  border-radius:999px;background:var(--glass);border:1px solid var(--glass-line);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);font-size:.9rem;
+}
+#bucketAdd button{background:var(--ink)}
+.bk-check{border-width:2px;border-radius:12px}
+.bk-check.done{background:var(--rose);border-color:var(--rose)}
+.bk-title{font-size:.95rem}
+.bk-date{color:var(--sage);font-size:.75rem}
+#bucketList li,#searchResults li{border-bottom:1px solid rgba(28,25,23,.07)}
+#toast{border-radius:999px;background:var(--ink);font-weight:600}
+#pickHint{border-radius:999px;background:var(--ink);font-size:.85rem;padding:10px 18px}
 #photoRow .ph,#photoAdd{border-radius:14px}
-#dPhotos img{border-radius:12px}
-.heart-cluster{border-width:4px;font-family:var(--hand)}
-.modal .close{border-radius:50%}
-#searchResults li{border-bottom:1.5px dashed rgba(255,143,163,.35)}
-#bucketList li{border-bottom:1.5px dashed rgba(255,143,163,.3)}
-header h1{color:#6b4a52}
+#photoAdd{border:1.5px dashed rgba(28,25,23,.25)}
+#dPhotos img{border-radius:14px;padding:0;transform:none!important;box-shadow:var(--shadow)}
+#dPhotos{gap:8px}
+.modal{background:var(--paper)}
+.modal .close{border-radius:50%;background:rgba(28,25,23,.07)}
+#dDelete{font-weight:500}
+/* MapLibre popup 글래스 */
+.maplibregl-popup-content{
+  border-radius:18px;padding:0;overflow:hidden;box-shadow:var(--shadow);
+  background:rgba(255,255,255,.92);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  border:1px solid var(--glass-line);width:200px;
+}
+.maplibregl-popup-tip{display:none}
+.pol{padding:8px 10px 10px;transform:none}
+.pol::before{display:none}
+.pol img{border-radius:12px;height:118px}
+.pol .noimg{border-radius:12px}
+.pol time{font-weight:500}
+.pol .more{border-radius:999px;background:rgba(28,25,23,.06);color:var(--ink);font-weight:600;font-size:.82rem;padding:8px}
+/* 지도 위 핀 */
+.heart-pin{cursor:pointer;filter:drop-shadow(0 4px 8px rgba(28,25,23,.28))}
+.heart-pin svg{display:block;transform-origin:50% 90%;animation:pinDrop .45s var(--squish) both}
 </style>
 </head>
 <body>
@@ -381,8 +447,7 @@ header h1{color:#6b4a52}
 </div>
 <div id="toast"></div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
 <script src="https://unpkg.com/dexie@3.2.7/dist/dexie.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -497,50 +562,47 @@ function renderHeader() {
   } else $("dday").textContent = "";
 }
 
-/* ───────── map (Leaflet: 전세계 지도) + Kakao(국내 장소검색) ───────── */
-const map = L.map("map", { zoomControl: false }).setView([36.5, 127.8], 7);
-L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-  maxZoom: 20, attribution: '&copy; OpenStreetMap &copy; CARTO'
-}).addTo(map);
-const pinLayer = (typeof L.markerClusterGroup === "function"
-  ? L.markerClusterGroup({
-      maxClusterRadius: 42, showCoverageOnHover: false,
-      iconCreateFunction: (c) => L.divIcon({
-        className: "", iconSize: [38, 38],
-        html: `<div class="heart-cluster" style="width:38px;height:38px">♥${c.getChildCount()}</div>`,
-      }),
-    })
-  : L.layerGroup()
-).addTo(map);
-const heartIcon = L.divIcon({
-  className: "heart-pin", iconSize: [36, 34], iconAnchor: [18, 30], popupAnchor: [0, -26],
-  html: `<svg viewBox="0 0 36 34" width="36" height="34"><path d="M18 31C9.5 24 4 18.6 4 12.6 4 7.8 7.8 4 12.4 4c2.3 0 4.4 1.1 5.6 2.9C19.2 5.1 21.3 4 23.6 4 28.2 4 32 7.8 32 12.6c0 6-5.5 11.4-14 18.4z" fill="#ff8fa3" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round"/><circle cx="12.2" cy="14.5" r="1.8" fill="#ffd1da"/><circle cx="23.8" cy="14.5" r="1.8" fill="#ffd1da"/></svg>`
+/* ───────── map (MapLibre + OpenFreeMap 벡터: 전세계·무료·키 불필요) + Kakao(국내 장소검색) ───────── */
+const map = new maplibregl.Map({
+  container: "map",
+  style: "https://tiles.openfreemap.org/styles/liberty",
+  center: [127.8, 36.5], zoom: 5.6,
+  attributionControl: { compact: true },
 });
+const HEART_SVG = `<svg viewBox="0 0 36 34" width="34" height="32"><path d="M18 31C9.5 24 4 18.6 4 12.6 4 7.8 7.8 4 12.4 4c2.3 0 4.4 1.1 5.6 2.9C19.2 5.1 21.3 4 23.6 4 28.2 4 32 7.8 32 12.6c0 6-5.5 11.4-14 18.4z" fill="#f43f5e" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
 let ps = null; // Kakao 장소검색 (지도 없이 검색만 사용)
 try { kakao.maps.load(() => { ps = new kakao.maps.services.Places(); }); } catch (e) {}
+const pins = [];
+function closeAllPopups() { pins.forEach((m) => { const p = m.getPopup(); if (p && p.isOpen()) p.remove(); }); }
 function renderPins() {
-  pinLayer.clearLayers();
+  pins.forEach((m) => m.remove());
+  pins.length = 0;
   db.places.forEach((p) => {
     if (p.deleted || !Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) return;
-    const m = L.marker([+p.lat, +p.lng], { icon: heartIcon }).addTo(pinLayer);
+    const el = document.createElement("div");
+    el.className = "heart-pin";
+    el.innerHTML = HEART_SVG;
     const ph = isDataImg(p.thumb) ? p.thumb : (isDataImg(p.photos && p.photos[0]) ? p.photos[0] : "");
-    const img = ph ? `<img src="${esc(ph)}" alt="">` : `<div class="noimg">🖼</div>`;
-    m.bindPopup(
-      `<div class="pol">${img}<h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
+    const box = document.createElement("div");
+    box.className = "pol";
+    box.innerHTML =
+      (ph ? `<img src="${esc(ph)}" alt="">` : `<div class="noimg">🖼</div>`) +
+      `<h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
       (p.note ? `<p>${esc(p.note)}</p>` : "") +
-      `<button class="more" data-id="${esc(p.id)}">자세히 보기</button></div>`,
-      { closeButton: false }
-    );
+      `<button class="more">자세히 보기</button>`;
+    box.querySelector(".more").onclick = () => openDetail(p.id);
+    const popup = new maplibregl.Popup({ offset: 30, closeButton: false, maxWidth: "220px" }).setDOMContent(box);
+    const m = new maplibregl.Marker({ element: el, anchor: "bottom" })
+      .setLngLat([+p.lng, +p.lat]).setPopup(popup).addTo(map);
+    pins.push(m);
   });
 }
-map.on("popupopen", (e) => {
-  const btn = e.popup.getElement().querySelector(".more");
-  if (btn) btn.onclick = () => openDetail(btn.dataset.id);
-});
 function fitPins() {
-  const pts = db.places.filter((p) => !p.deleted && Number.isFinite(+p.lat) && Number.isFinite(+p.lng)).map((p) => [+p.lat, +p.lng]);
+  const pts = db.places.filter((p) => !p.deleted && Number.isFinite(+p.lat) && Number.isFinite(+p.lng));
   if (!pts.length) return;
-  map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 13 });
+  const b = new maplibregl.LngLatBounds();
+  pts.forEach((p) => b.extend([+p.lng, +p.lat]));
+  map.fitBounds(b, { padding: 70, maxZoom: 13, duration: 600 });
 }
 
 /* ───────── tabs ───────── */
@@ -552,7 +614,7 @@ function switchTab(which) {
   }
   $("bucketAdd").classList.toggle("show", which === "bucket");
   $("fab").style.display = which === "map" ? "" : "none";
-  if (which === "map") setTimeout(() => map.invalidateSize(), 60);
+  if (which === "map") setTimeout(() => map.resize(), 60);
   if (which === "timeline") renderTimeline();
 }
 $("tabMap").onclick = () => switchTab("map");
@@ -659,7 +721,7 @@ $("pickHint").onclick = endPick; // 힌트 탭 = 취소
 map.on("click", (e) => {
   if (!picking) return;
   endPick();
-  openForm({ lat: e.latlng.lat, lng: e.latlng.lng, name: "" });
+  openForm({ lat: e.lngLat.lat, lng: e.lngLat.lng, name: "" });
 });
 
 function openForm(d) {
@@ -736,7 +798,7 @@ $("btnSave").onclick = async () => {
     queuePhotoUpload(photoIds);
     closeLayer("veilForm");
     renderPins();
-    map.setView([lat, lng], Math.max(map.getZoom(), 13));
+    map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 13) });
     toast("우리 지도에 추가됐어요 ♥");
     requestSync();
   } finally { $("btnSave")._busy = false; }
@@ -766,7 +828,7 @@ async function openDetail(id) {
   }
   $("dPhotos").innerHTML = srcs.map((s) => `<img src="${esc(s)}" alt="">`).join("");
   [...$("dPhotos").children].forEach((im, i) => (im.onclick = () => openLightbox(srcs, i)));
-  map.closePopup();
+  closeAllPopups();
   openLayer("detail");
 }
 /* 사진 확대 — 좌우 넘기기(버튼·스와이프) */

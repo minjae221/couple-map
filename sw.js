@@ -21,7 +21,7 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
 
   // 지도 타일·카카오 검색: 캐시하지 않음 (용량 폭증·stale 결과 방지)
-  if (url.hostname.endsWith("cartocdn.com") || url.hostname.endsWith("openstreetmap.org") ||
+  if (url.hostname.endsWith("openfreemap.org") || url.hostname.endsWith("openstreetmap.org") ||
       url.hostname.endsWith("kakao.com") || url.hostname.endsWith("daumcdn.net") ||
       url.hostname.endsWith("supabase.co")) return;
 
