@@ -10,7 +10,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
 <style>
 /* 하트 클러스터 (핀 뭉침) */
@@ -26,7 +26,7 @@
   --rose:#f43f5e; --rose-deep:#e11d48; --sage:#10b981; --lav:#8b5cf6; --white:#ffffff;
   --glass:rgba(255,255,255,.66); --glass-line:rgba(255,255,255,.75);
   --shadow:0 8px 32px rgba(28,25,23,.09);
-  --hand:'Pretendard Variable',Pretendard,sans-serif; --body:'Pretendard Variable',Pretendard,sans-serif;
+  --hand:'Wanted Sans Variable','Wanted Sans',Pretendard,sans-serif; --body:'Wanted Sans Variable','Wanted Sans',Pretendard,sans-serif;
   --squish:cubic-bezier(.34,1.56,.64,1);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -325,6 +325,34 @@ nav button.active::after{display:none}
 .modal{background:var(--paper)}
 .modal .close{border-radius:50%;background:rgba(28,25,23,.07)}
 #dDelete{font-weight:500}
+/* 기념일 리스트 */
+#anniList{list-style:none;max-height:52vh;overflow-y:auto;margin-top:4px}
+#anniList li{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:12px 6px;border-bottom:1px solid rgba(28,25,23,.07);font-size:.92rem;
+}
+#anniList li.past{color:var(--ink-soft)}
+#anniList li.next{
+  background:linear-gradient(90deg,rgba(244,63,94,.08),transparent);
+  border-radius:14px;border-bottom-color:transparent;padding:12px 10px;
+}
+#anniList .an-name{font-weight:700}
+#anniList li.next .an-name{color:var(--rose-deep)}
+#anniList .an-date{color:var(--ink-soft);font-size:.78rem;margin-top:1px}
+#anniList .an-d{
+  font-weight:700;font-size:.8rem;flex:none;border-radius:999px;padding:5px 11px;
+  background:rgba(28,25,23,.06);
+}
+#anniList li.next .an-d{background:var(--rose);color:#fff}
+/* 도시 컬렉션 */
+#cityGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px;max-height:52vh;overflow-y:auto}
+.city-card{
+  border-radius:18px;background:var(--glass);border:1px solid var(--glass-line);
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  padding:14px 12px;
+}
+.city-card b{display:block;font-size:.95rem;letter-spacing:-.01em}
+.city-card span{font-size:.75rem;color:var(--ink-soft)}
 /* MapLibre popup 글래스 */
 .maplibregl-popup-content{
   border-radius:18px;padding:0;overflow:hidden;box-shadow:var(--shadow);
@@ -407,6 +435,25 @@ nav button.active::after{display:none}
     <input type="file" id="photoFile" accept="image/*" multiple hidden>
     <button class="btn btn-rose" id="btnSave">이 곳을 우리 지도에 ♥</button>
     <button class="btn btn-ghost" id="btnFormCancel">취소</button>
+  </div>
+</div>
+
+<!-- anniversaries -->
+<div class="veil" id="veilAnni">
+  <div class="sheet">
+    <h2>우리의 기념일 🎂</h2>
+    <ul id="anniList"></ul>
+    <button class="btn btn-ghost" id="btnAnniClose">닫기</button>
+  </div>
+</div>
+
+<!-- city collection -->
+<div class="veil" id="veilCity">
+  <div class="sheet">
+    <h2>우리가 정복한 도시 🏙</h2>
+    <div id="cityGrid"></div>
+    <div id="cityEmpty" style="display:none;text-align:center;color:var(--ink-soft);padding:20px 0;font-size:.9rem">아직 없어요 — 첫 추억을 남기면 도시가 모여요</div>
+    <button class="btn btn-ghost" id="btnCityClose">닫기</button>
   </div>
 </div>
 
@@ -568,7 +615,10 @@ function renderHeader() {
   $("names").innerHTML = a && b ? `${esc(a)}<span class="amp">♥</span>${esc(b)}` : `우리<span class="amp">♥</span>지도`;
   if (start) {
     const days = Math.floor((Date.now() - new Date(start + "T00:00:00")) / 864e5) + 1;
-    $("dday").textContent = days > 0 ? `함께한 지 ${days.toLocaleString()}일` : "";
+    let t = days > 0 ? `함께한 지 ${days.toLocaleString()}일` : "";
+    const nx = nextAnni();
+    if (t && nx) t += nx.diff === 0 ? ` · 오늘은 ${nx.name} 💗` : ` · ${nx.name} D-${nx.diff}`;
+    $("dday").textContent = t;
   } else $("dday").textContent = "";
 }
 
@@ -637,9 +687,19 @@ function renderTimeline() {
   $("tlEmpty").style.display = alive.length ? "none" : "";
   const photoN = alive.reduce((n, p) => n + ((p.photos || []).length), 0);
   const doneN = db.bucket.filter((b) => !b.deleted && b.done).length;
-  $("tlStats").innerHTML = alive.length
-    ? `<span>함께 간 곳 <b>${alive.length}</b></span><span>사진 <b>${photoN}</b></span><span>이룬 버킷 <b>${doneN}</b></span>`
+  const cityN = cityMap().size;
+  const nx = nextAnni();
+  $("tlStats").innerHTML = alive.length || nx
+    ? `<span>함께 간 곳 <b>${alive.length}</b></span><span>사진 <b>${photoN}</b></span><span>버킷 <b>${doneN}</b></span>` +
+      `<span data-act="city" style="cursor:pointer">🏙 도시 <b>${cityN}</b></span>` +
+      (nx ? `<span data-act="anni" style="cursor:pointer">🎂 ${nx.name} <b>${nx.diff === 0 ? "오늘" : "D-" + nx.diff}</b></span>` : "")
     : "";
+  $("tlStats").querySelectorAll("[data-act]").forEach((el) => {
+    el.onclick = () => {
+      if (el.dataset.act === "city") { renderCityGrid(); openLayer("veilCity"); void backfillRegions(); }
+      else { renderAnniSheet(); openLayer("veilAnni"); }
+    };
+  });
   const sorted = [...alive].sort((a, b) => (b.date || "0000").localeCompare(a.date || "0000"));
   let lastYM = "", html = "";
   for (const p of sorted) {
@@ -678,7 +738,7 @@ function showResults(items) { // items: [{name, addr, lat, lng}]
   [...$("searchResults").children].forEach((li) => {
     li.onclick = () => {
       const x = items[+li.dataset.i];
-      openForm({ lat: x.lat, lng: x.lng, name: x.name });
+      openForm({ lat: x.lat, lng: x.lng, name: x.name, region: x.region || "" });
     };
   });
 }
@@ -703,6 +763,7 @@ function doSearch(q) {
       showResults(rows.slice(0, 6).map((x) => ({
         name: x.place_name,
         addr: x.road_address_name || x.address_name || "",
+        region: (x.address_name || x.road_address_name || "").split(" ").slice(0, 2).join(" "),
         lat: +x.y, lng: +x.x,
       })));
     } else {
@@ -736,7 +797,7 @@ map.on("click", (e) => {
 
 function openForm(d) {
   endPick();
-  draft = { ...d, photos: [] };
+  draft = { ...d, region: d.region || "", photos: [] };
   $("fName").value = d.name || "";
   $("fDate").value = localToday();
   $("fNote").value = "";
@@ -802,9 +863,11 @@ $("btnSave").onclick = async () => {
       }
     } catch (e) { toast("사진 저장 실패 — 다시 시도해주세요"); return; }
     const pid = uid();
-    db.places.push({ id: pid, name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), thumb, photos: photoIds, deleted: false, updated_at: Date.now() });
+    const reg = draft.region || "";
+    db.places.push({ id: pid, name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), thumb, photos: photoIds, region: reg, deleted: false, updated_at: Date.now() });
     if (!save()) { ddb.photos.bulkDelete(photoIds).catch(() => {}); renderAll(); return; }
     markDirty("places", pid);
+    if (!reg) void reverseRegion(pid); // 지도 직접 찍기·해외 검색은 배경에서 도시 판정
     queuePhotoUpload(photoIds);
     closeLayer("veilForm");
     renderPins();
@@ -933,6 +996,81 @@ function addBucket() {
 $("bucketSubmit").onclick = addBucket;
 $("bucketInput").addEventListener("keydown", (e) => { if (e.key === "Enter") addBucket(); });
 
+/* ───────── 기념일 ───────── */
+function anniversaries() {
+  if (!DATE_RE.test(db.meta.start || "")) return [];
+  const s = new Date(db.meta.start + "T00:00:00");
+  const list = [];
+  [100, 200, 300, 500, 1000, 2000, 3000].forEach((n) => {
+    const d = new Date(s); d.setDate(d.getDate() + n - 1); // 사귄 날 = 1일차
+    list.push({ name: `${n}일`, d });
+  });
+  for (let y = 1; y <= 10; y++) {
+    const d = new Date(s); d.setFullYear(d.getFullYear() + y);
+    list.push({ name: `${y}주년`, d });
+  }
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  list.forEach((a) => { a.diff = Math.round((a.d - today) / 864e5); });
+  return list.sort((a, b) => a.d - b.d);
+}
+function nextAnni() { return anniversaries().find((a) => a.diff >= 0) || null; }
+function renderAnniSheet() {
+  const list = anniversaries();
+  const nx = nextAnni();
+  $("anniList").innerHTML = list.map((a) => {
+    const cls = a.diff < 0 ? "past" : (a === nx ? "next" : "");
+    const dd = a.diff < 0 ? "지남" : a.diff === 0 ? "오늘 💗" : `D-${a.diff}`;
+    const ds = `${a.d.getFullYear()}. ${a.d.getMonth() + 1}. ${a.d.getDate()}.`;
+    return `<li class="${cls}"><div><div class="an-name">${a.name}</div><div class="an-date">${ds}</div></div><div class="an-d">${dd}</div></li>`;
+  }).join("");
+  const el = $("anniList").querySelector(".next");
+  if (el) setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 80);
+}
+$("btnAnniClose").onclick = () => closeLayer("veilAnni");
+$("dday").style.cursor = "pointer";
+$("dday").onclick = () => { if (DATE_RE.test(db.meta.start || "")) { renderAnniSheet(); openLayer("veilAnni"); } };
+
+/* ───────── 도시 컬렉션 ───────── */
+function cityMap() {
+  const m = new Map();
+  db.places.filter((p) => !p.deleted && p.region).forEach((p) => {
+    const e = m.get(p.region) || { n: 0, first: "" };
+    e.n++;
+    if (DATE_RE.test(p.date) && (!e.first || p.date < e.first)) e.first = p.date;
+    m.set(p.region, e);
+  });
+  return m;
+}
+async function reverseRegion(id) {
+  const p = db.places.find((x) => x.id === id);
+  if (!p || p.region || !Number.isFinite(+p.lat)) return;
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&accept-language=ko&zoom=10&lat=${+p.lat}&lon=${+p.lng}`);
+    const a = (await r.json()).address || {};
+    const city = a.city || a.county || a.town || a.village || a.state || "";
+    p.region = (a.country === "대한민국" || a.country === "한국")
+      ? city
+      : (city ? `${city}, ${a.country || ""}` : (a.country || ""));
+    if (p.region) save(true); // region은 이 폰에서 파생한 값 — 동기화 대상 아님
+  } catch (e) {}
+}
+async function backfillRegions() { // 옛 기록들 도시 판정 (예의상 1초 간격, 한 번에 8개)
+  const missing = db.places.filter((p) => !p.deleted && !p.region && Number.isFinite(+p.lat)).slice(0, 8);
+  for (const p of missing) {
+    await reverseRegion(p.id);
+    renderCityGrid();
+    await new Promise((r) => setTimeout(r, 1100));
+  }
+}
+function renderCityGrid() {
+  const m = cityMap();
+  $("cityEmpty").style.display = m.size ? "none" : "";
+  $("cityGrid").innerHTML = [...m.entries()].sort((a, b) => b[1].n - a[1].n)
+    .map(([name, e]) => `<div class="city-card"><b>${esc(name)}</b><span>추억 ${e.n}개${e.first ? ` · ${fmtDate(e.first)}부터` : ""}</span></div>`)
+    .join("");
+}
+$("btnCityClose").onclick = () => closeLayer("veilCity");
+
 /* ───────── settings ───────── */
 $("btnSettings").onclick = () => {
   $("sNameA").value = db.meta.a; $("sNameB").value = db.meta.b; $("sStart").value = db.meta.start;
@@ -1022,6 +1160,7 @@ $("importFile").addEventListener("change", (e) => {
         note: strOr(p.note, "").slice(0, 120),
         thumb,
         photos: photoIds,
+        region: strOr(p.region, "").slice(0, 40),
         deleted: !!p.deleted,
         updated_at: Number(p.updated_at) || Date.now(),
       });
@@ -1061,7 +1200,7 @@ $("importFile").addEventListener("change", (e) => {
 });
 
 /* veil 바깥 탭으로 닫기 (작성 중인 폼은 확인 후) */
-["veilSearch", "veilSettings"].forEach((id) => {
+["veilSearch", "veilSettings", "veilAnni", "veilCity"].forEach((id) => {
   $(id).addEventListener("click", (e) => { if (e.target === $(id)) closeLayer(id); });
 });
 $("veilForm").addEventListener("click", (e) => {
