@@ -305,9 +305,12 @@ nav button.active::after{
 <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script src="https://unpkg.com/dexie@3.2.7/dist/dexie.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=32f3dd6b67ffcbb366a6d77b4d89552b&libraries=services&autoload=false"></script>
 <script>
 "use strict";
+/* ───────── backend (Supabase) 설정 — backend/SETUP.md 절차 후 두 값만 채우면 커플 동기화 ON ───────── */
+const SYNC = { url: "", key: "" };
 /* ───────── state ───────── */
 const LS_KEY = "cm_v1";
 const $ = (id) => document.getElementById(id);
@@ -425,7 +428,7 @@ try { kakao.maps.load(() => { ps = new kakao.maps.services.Places(); }); } catch
 function renderPins() {
   pinLayer.clearLayers();
   db.places.forEach((p) => {
-    if (!Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) return;
+    if (p.deleted || !Number.isFinite(+p.lat) || !Number.isFinite(+p.lng)) return;
     const m = L.marker([+p.lat, +p.lng], { icon: heartIcon }).addTo(pinLayer);
     const ph = isDataImg(p.thumb) ? p.thumb : (isDataImg(p.photos && p.photos[0]) ? p.photos[0] : "");
     const img = ph ? `<img src="${esc(ph)}" alt="">` : `<div class="noimg">🖼</div>`;
@@ -442,7 +445,7 @@ map.on("popupopen", (e) => {
   if (btn) btn.onclick = () => openDetail(btn.dataset.id);
 });
 function fitPins() {
-  const pts = db.places.filter((p) => Number.isFinite(+p.lat) && Number.isFinite(+p.lng)).map((p) => [+p.lat, +p.lng]);
+  const pts = db.places.filter((p) => !p.deleted && Number.isFinite(+p.lat) && Number.isFinite(+p.lng)).map((p) => [+p.lat, +p.lng]);
   if (!pts.length) return;
   map.fitBounds(L.latLngBounds(pts).pad(0.25), { maxZoom: 13 });
 }
@@ -606,12 +609,14 @@ $("btnSave").onclick = async () => {
       thumb = await makeThumb(draft.photos[0].data);
     }
   } catch (e) { toast("사진 저장 실패 — 다시 시도해주세요"); return; }
-  db.places.push({ id: uid(), name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), thumb, photos: photoIds });
+  db.places.push({ id: uid(), name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), thumb, photos: photoIds, deleted: false, updated_at: Date.now() });
   if (!save()) { ddb.photos.bulkDelete(photoIds).catch(() => {}); renderAll(); return; }
+  queuePhotoUpload(photoIds);
   closeLayer("veilForm");
   renderPins();
   map.setView([lat, lng], Math.max(map.getZoom(), 13));
   toast("우리 지도에 추가됐어요 ♥");
+  requestSync();
 };
 
 /* ───────── detail ───────── */
@@ -629,7 +634,11 @@ async function openDetail(id) {
   if (keyIds.length) {
     try {
       const rows = await ddb.photos.bulkGet(keyIds);
-      srcs = srcs.concat(rows.filter((r) => r && isDataImg(r.data)).map((r) => r.data));
+      for (let i = 0; i < keyIds.length; i++) {
+        const r = rows[i];
+        if (r && isDataImg(r.data)) srcs.push(r.data);
+        else { const remote = await fetchRemotePhoto(keyIds[i]); if (remote) srcs.push(remote); } // 상대가 올린 사진
+      }
     } catch (e) {}
   }
   $("dPhotos").innerHTML = srcs.map((s) => `<img src="${esc(s)}" alt="">`).join("");
@@ -642,18 +651,19 @@ $("lightbox").onclick = () => closeLayer("lightbox");
 $("dDelete").onclick = () => {
   if (!confirm("이 추억을 정말 지울까요?")) return;
   const p = db.places.find((x) => x.id === detailId);
-  db.places = db.places.filter((x) => x.id !== detailId);
+  if (p) { p.deleted = true; p.updated_at = Date.now(); } // tombstone — 상대 폰에도 삭제 전파
   if (!save()) { renderAll(); return; }
   if (p) ddb.photos.bulkDelete((p.photos || []).filter((s) => !isDataImg(s))).catch(() => {});
   renderPins();
   closeLayer("detail");
   toast("지웠어요");
+  requestSync();
 };
 
 /* ───────── bucket ───────── */
 function renderBucket() {
   const ul = $("bucketList");
-  const items = db.bucket;
+  const items = db.bucket.filter((b) => !b.deleted);
   $("bucketEmpty").style.display = items.length ? "none" : "";
   $("bucketCount").textContent = items.length ? `${items.filter((b) => b.done).length}/${items.length} 이뤘어요` : "";
   ul.innerHTML = "";
@@ -670,7 +680,8 @@ function renderBucket() {
     li.querySelector(".bk-check").onclick = () => {
       b.done = !b.done;
       b.doneDate = b.done ? localToday() : "";
-      const ok = save(); renderBucket();
+      b.updated_at = Date.now();
+      const ok = save(); renderBucket(); requestSync();
       if (ok && b.done) {
         toast("하나 더 이뤘네요! 🎉");
         if (typeof confetti === "function") confetti({ particleCount: 90, spread: 70, origin: { y: 0.75 }, colors: ["#d95d6d", "#f7f1e5", "#7d9b76", "#ffffff"] });
@@ -678,8 +689,8 @@ function renderBucket() {
     };
     li.querySelector(".bk-del").onclick = () => {
       if (!confirm("이 항목을 지울까요?")) return;
-      db.bucket = db.bucket.filter((x) => x.id !== b.id);
-      save(); renderBucket();
+      b.deleted = true; b.updated_at = Date.now(); // tombstone — 상대 폰에도 삭제 전파
+      save(); renderBucket(); requestSync();
     };
     const pin = li.querySelector(".bk-pin");
     if (pin) pin.onclick = () => { switchTab("map"); openLayer("veilSearch"); $("searchInput").value = b.title; doSearch(b.title); };
@@ -689,10 +700,10 @@ function renderBucket() {
 function addBucket() {
   const v = $("bucketInput").value.trim();
   if (!v) return;
-  db.bucket.unshift({ id: uid(), title: v, done: false, doneDate: "" });
+  db.bucket.unshift({ id: uid(), title: v, done: false, doneDate: "", deleted: false, updated_at: Date.now() });
   if (!save()) { renderBucket(); return; }
   $("bucketInput").value = "";
-  renderBucket();
+  renderBucket(); requestSync();
 }
 $("bucketSubmit").onclick = addBucket;
 $("bucketInput").addEventListener("keydown", (e) => { if (e.key === "Enter") addBucket(); });
@@ -776,7 +787,10 @@ $("importFile").addEventListener("change", (e) => {
         note: strOr(p.note, "").slice(0, 120),
         thumb,
         photos: photoIds,
+        deleted: !!p.deleted,
+        updated_at: Number(p.updated_at) || 0,
       });
+      queuePhotoUpload(photoIds);
     }
     d.bucket.forEach((b) => {
       if (!b) return;
@@ -785,7 +799,7 @@ $("importFile").addEventListener("change", (e) => {
       const id = strOr(b.id, "") || uid();
       if (bids.has(id)) return;
       bids.add(id);
-      db.bucket.push({ id, title, done: !!b.done, doneDate: DATE_RE.test(b.doneDate) ? b.doneDate : "" });
+      db.bucket.push({ id, title, done: !!b.done, doneDate: DATE_RE.test(b.doneDate) ? b.doneDate : "", deleted: !!b.deleted, updated_at: Number(b.updated_at) || 0 });
     });
     if (!db.meta.a && d.meta && typeof d.meta === "object") {
       db.meta = {
@@ -817,6 +831,107 @@ $("veilForm").addEventListener("click", (e) => {
   const dirty = $("fName").value.trim() || $("fNote").value.trim() || (draft && draft.photos.length);
   if (!dirty || confirm("작성 중인 기록을 버릴까요?")) closeLayer("veilForm");
 });
+
+/* ───────── backend sync (Supabase) — SYNC.url/key 채우면 자동 활성 ───────── */
+let sb = null, syncing = false, syncDebounce = null;
+const syncOn = () => !!(SYNC.url && SYNC.key && window.supabase);
+function requestSync() { // 저장 직후 3초 디바운스 푸시
+  if (!syncOn()) return;
+  clearTimeout(syncDebounce);
+  syncDebounce = setTimeout(() => void syncNow(), 3000);
+}
+function queuePhotoUpload(ids) {
+  if (!ids.length) return;
+  const q = JSON.parse(localStorage.getItem("cm_upq") || "[]");
+  localStorage.setItem("cm_upq", JSON.stringify([...new Set([...q, ...ids])]));
+}
+async function flushPhotoUploads() {
+  const q = JSON.parse(localStorage.getItem("cm_upq") || "[]");
+  if (!q.length) return;
+  const remain = [];
+  for (const id of q) {
+    try {
+      const row = await ddb.photos.get(id);
+      if (!row || !isDataImg(row.data)) continue; // 사진이 없으면 조용히 버림
+      const blob = await (await fetch(row.data)).blob();
+      const { error } = await sb.storage.from("photos").upload(`${id}.jpg`, blob, { upsert: true, contentType: "image/jpeg" });
+      if (error) remain.push(id);
+    } catch (e) { remain.push(id); }
+  }
+  localStorage.setItem("cm_upq", JSON.stringify(remain));
+}
+function mergeLWW(localArr, remoteRows, normalize) {
+  // last-write-wins by updated_at. 반환: [바뀜 여부]
+  let changed = false;
+  const byId = new Map(localArr.map((x) => [x.id, x]));
+  for (const raw of remoteRows) {
+    const r = normalize(raw);
+    if (!r) continue;
+    const l = byId.get(r.id);
+    if (!l) { localArr.push(r); byId.set(r.id, r); changed = true; }
+    else if ((r.updated_at || 0) > (l.updated_at || 0)) { Object.assign(l, r); changed = true; }
+  }
+  return changed;
+}
+async function syncNow() {
+  if (!syncOn() || syncing) return;
+  syncing = true;
+  try {
+    if (!sb) sb = window.supabase.createClient(SYNC.url, SYNC.key);
+    // 1) pull + merge (LWW)
+    const [pr, br] = await Promise.all([sb.from("places").select("*"), sb.from("bucket").select("*")]);
+    let changed = false;
+    if (!pr.error && Array.isArray(pr.data)) {
+      changed = mergeLWW(db.places, pr.data, (r) => {
+        if (typeof r.id !== "string" || !Number.isFinite(+r.lat) || !Number.isFinite(+r.lng)) return null;
+        return {
+          id: r.id, name: String(r.name || "").slice(0, 60), lat: +r.lat, lng: +r.lng,
+          date: DATE_RE.test(r.date) ? r.date : "", note: String(r.note || "").slice(0, 120),
+          thumb: isDataImg(r.thumb) ? r.thumb : "",
+          photos: (Array.isArray(r.photos) ? r.photos : []).filter((s) => typeof s === "string"),
+          deleted: !!r.deleted, updated_at: Number(r.updated_at) || 0,
+        };
+      }) || changed;
+    }
+    if (!br.error && Array.isArray(br.data)) {
+      changed = mergeLWW(db.bucket, br.data, (r) => {
+        if (typeof r.id !== "string" || typeof r.title !== "string" || !r.title) return null;
+        return {
+          id: r.id, title: r.title.slice(0, 80), done: !!r.done,
+          doneDate: DATE_RE.test(r.done_date) ? r.done_date : "",
+          deleted: !!r.deleted, updated_at: Number(r.updated_at) || 0,
+        };
+      }) || changed;
+    }
+    if (changed) { save(); renderAll(); }
+    // 2) push (전체 upsert — 개인 스케일에서 단순·안전)
+    await Promise.all([
+      sb.from("places").upsert(db.places.map((p) => ({
+        id: p.id, name: p.name, lat: p.lat, lng: p.lng, date: p.date || "", note: p.note || "",
+        thumb: p.thumb || "", photos: (p.photos || []).filter((s) => !isDataImg(s)),
+        deleted: !!p.deleted, updated_at: p.updated_at || 0,
+      }))),
+      sb.from("bucket").upsert(db.bucket.map((b) => ({
+        id: b.id, title: b.title, done: !!b.done, done_date: b.doneDate || "",
+        deleted: !!b.deleted, updated_at: b.updated_at || 0,
+      }))),
+    ]);
+    // 3) 사진 업로드 큐 처리
+    await flushPhotoUploads();
+  } catch (e) { console.warn("sync fail", e); }
+  syncing = false;
+}
+async function fetchRemotePhoto(id) { // 상대가 올린 사진을 내 폰에 캐시
+  if (!syncOn() || !sb) return "";
+  try {
+    const { data, error } = await sb.storage.from("photos").download(`${id}.jpg`);
+    if (error || !data) return "";
+    const dataURL = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(data); });
+    if (isDataImg(dataURL)) { await ddb.photos.put({ id, data: dataURL }); return dataURL; }
+  } catch (e) {}
+  return "";
+}
+if (syncOn()) { void syncNow(); setInterval(() => void syncNow(), 60000); }
 
 /* ───────── boot ───────── */
 function renderAll() { renderHeader(); renderPins(); renderBucket(); fitPins(); }
