@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
 <title>우리의 지도</title>
-<meta name="theme-color" content="#f7f1e5">
+<meta name="theme-color" content="#fff7ee">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
 <style>
@@ -25,17 +25,31 @@
 </style>
 <style>
 :root{
-  --paper:#f7f1e5; --paper-deep:#efe6d3; --ink:#4a3f35; --ink-soft:#8a7d6f;
-  --rose:#d95d6d; --rose-deep:#c04858; --sage:#7d9b76; --white:#fffdf8;
-  --shadow:0 6px 18px rgba(74,63,53,.16);
-  --hand:'Nanum Pen Script',cursive; --body:'Gowun Dodum',sans-serif;
+  --paper:#fff7ee; --paper-deep:#ffefe2; --ink:#5b4a40; --ink-soft:#a08b7c;
+  --rose:#ff8fa3; --rose-deep:#f26d85; --sage:#7fc8a9; --lav:#c9b8f0; --white:#ffffff;
+  --shadow:0 8px 22px rgba(242,109,133,.14);
+  --hand:'Jua',sans-serif; --body:'Gowun Dodum',sans-serif;
+  --squish:cubic-bezier(.34,1.56,.64,1);
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overscroll-behavior:none}
 body{
-  font-family:var(--body);color:var(--ink);background:var(--paper);
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 .29 0 0 0 0 .25 0 0 0 0 .21 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E");
+  font-family:var(--body);color:var(--ink);
+  background:linear-gradient(180deg,#fff7ee 0%,#fff0e6 55%,#ffe8dc 100%);
   display:flex;flex-direction:column;position:fixed;inset:0;
+}
+/* 몽글 blob 배경 */
+body::before{
+  content:"";position:fixed;width:340px;height:340px;z-index:-1;
+  border-radius:46% 54% 58% 42%/52% 44% 56% 48%;
+  background:radial-gradient(circle at 35% 35%,#ffd8e1,#ffc7d4);
+  top:-130px;right:-110px;opacity:.55;filter:blur(4px);
+}
+body::after{
+  content:"";position:fixed;width:300px;height:300px;z-index:-1;
+  border-radius:52% 48% 44% 56%/48% 55% 45% 52%;
+  background:radial-gradient(circle at 40% 40%,#e8dffb,#d9cdf6);
+  bottom:-120px;left:-100px;opacity:.5;filter:blur(6px);
 }
 /* ── header ─────────────────────────────── */
 header{
@@ -235,8 +249,36 @@ nav button.active::after{
 #pickHint{cursor:pointer}
 @media (min-width:640px){
   .veil{align-items:center}
-  .sheet{border-radius:18px;animation:none}
+  .sheet{border-radius:28px;animation:none}
 }
+/* ── 몽글 테마: 둥글게 + 말랑 모션 ── */
+button{transition:transform .16s var(--squish)}
+button:active{transform:scale(.93)}
+.sheet{border-radius:28px 28px 0 0}
+.sheet input[type=text],.sheet input[type=date],.sheet input[type=search]{border-radius:16px;border-color:rgba(160,139,124,.28)}
+.btn{border-radius:999px}
+#fab{background:linear-gradient(135deg,#ff9fb0,#f26d85);box-shadow:0 10px 24px rgba(242,109,133,.45)}
+nav{border-radius:22px 22px 0 0;box-shadow:0 -6px 20px rgba(242,109,133,.13)}
+nav button.active::after{width:34px;height:4px;border-radius:3px}
+.leaflet-popup-content-wrapper{border-radius:18px}
+.pol::before{background:rgba(255,183,197,.7)}
+.pol img{border-radius:12px}
+.pol .more{border-radius:999px;background:#ffe9ee}
+.tl-card{border-radius:22px}
+.tl-card img,.tl-card .noimg{border-radius:14px}
+#tlStats span{border-radius:999px}
+#toast{border-radius:999px;background:var(--rose-deep)}
+#pickHint{border-radius:999px;background:var(--rose-deep)}
+#bucketAdd input{border-radius:999px}
+.bk-check{border-width:2.5px}
+.bk-date{color:var(--sage)}
+#photoRow .ph,#photoAdd{border-radius:14px}
+#dPhotos img{border-radius:12px}
+.heart-cluster{border-width:4px;font-family:var(--hand)}
+.modal .close{border-radius:50%}
+#searchResults li{border-bottom:1.5px dashed rgba(255,143,163,.35)}
+#bucketList li{border-bottom:1.5px dashed rgba(255,143,163,.3)}
+header h1{color:#6b4a52}
 </style>
 </head>
 <body>
@@ -471,8 +513,8 @@ const pinLayer = (typeof L.markerClusterGroup === "function"
   : L.layerGroup()
 ).addTo(map);
 const heartIcon = L.divIcon({
-  className: "heart-pin", iconSize: [34, 34], iconAnchor: [17, 30], popupAnchor: [0, -26],
-  html: `<svg viewBox="0 0 32 32" width="34" height="34"><path d="M16 29C8 21.5 3 16.6 3 11.2 3 7 6.2 4 10 4c2.4 0 4.7 1.3 6 3.4C17.3 5.3 19.6 4 22 4c3.8 0 7 3 7 7.2 0 5.4-5 10.3-13 17.8z" fill="#d95d6d" stroke="#fffdf8" stroke-width="2"/></svg>`
+  className: "heart-pin", iconSize: [36, 34], iconAnchor: [18, 30], popupAnchor: [0, -26],
+  html: `<svg viewBox="0 0 36 34" width="36" height="34"><path d="M18 31C9.5 24 4 18.6 4 12.6 4 7.8 7.8 4 12.4 4c2.3 0 4.4 1.1 5.6 2.9C19.2 5.1 21.3 4 23.6 4 28.2 4 32 7.8 32 12.6c0 6-5.5 11.4-14 18.4z" fill="#ff8fa3" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round"/><circle cx="12.2" cy="14.5" r="1.8" fill="#ffd1da"/><circle cx="23.8" cy="14.5" r="1.8" fill="#ffd1da"/></svg>`
 });
 let ps = null; // Kakao 장소검색 (지도 없이 검색만 사용)
 try { kakao.maps.load(() => { ps = new kakao.maps.services.Places(); }); } catch (e) {}
