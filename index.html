@@ -530,14 +530,28 @@ let historyArmed = false, ignorePop = false;
 function openLayer(id) {
   $(id).classList.add("show");
   layers.push(id);
-  if (!historyArmed) { history.pushState({ cm: 1 }, ""); historyArmed = true; }
+  if (!historyArmed) {
+    if (!(history.state && history.state.cm)) history.pushState({ cm: 1 }, "");
+    historyArmed = true;
+  }
 }
 function closeLayer(id) {
   const i = layers.lastIndexOf(id);
   if (i >= 0) layers.splice(i, 1);
   $(id).classList.remove("show");
   if (id === "veilForm") draft = null;
-  if (!layers.length && historyArmed) { ignorePop = true; history.back(); historyArmed = false; }
+  if (!layers.length && historyArmed) {
+    historyArmed = false;
+    // 우리가 쌓은 히스토리일 때만 back — 아니면 앱 밖으로 튕김
+    if (history.state && history.state.cm) { ignorePop = true; history.back(); }
+  }
+}
+function swapLayer(fromId, toId) { // 창 교체: 히스토리 조작 없이 (back/push 경합 제거)
+  const i = layers.lastIndexOf(fromId);
+  if (i >= 0) layers.splice(i, 1);
+  $(fromId).classList.remove("show");
+  $(toId).classList.add("show");
+  layers.push(toId);
 }
 window.addEventListener("popstate", () => {
   if (ignorePop) { ignorePop = false; return; }
@@ -723,12 +737,12 @@ map.on("click", (e) => {
 function openForm(d) {
   endPick();
   draft = { ...d, photos: [] };
-  if (layers.includes("veilSearch")) closeLayer("veilSearch");
   $("fName").value = d.name || "";
   $("fDate").value = localToday();
   $("fNote").value = "";
   renderPhotoRow();
-  openLayer("veilForm");
+  if (layers.includes("veilSearch")) swapLayer("veilSearch", "veilForm");
+  else openLayer("veilForm");
 }
 $("btnFormCancel").onclick = () => closeLayer("veilForm");
 
