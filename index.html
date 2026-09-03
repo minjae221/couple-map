@@ -190,7 +190,34 @@ nav button.active::after{
 /* lightbox */
 #lightbox{position:fixed;inset:0;z-index:1000;background:rgba(30,25,20,.93);display:none;align-items:center;justify-content:center}
 #lightbox.show{display:flex}
-#lightbox img{max-width:96%;max-height:92%;border-radius:4px}
+#lightbox img{max-width:88%;max-height:92%;border-radius:4px}
+#lbPrev,#lbNext{
+  position:absolute;top:50%;transform:translateY(-50%);border:none;background:rgba(247,241,229,.14);
+  color:var(--paper);width:42px;height:42px;border-radius:50%;font-size:1.5rem;line-height:1;cursor:pointer;z-index:2;
+}
+#lbPrev{left:8px}#lbNext{right:8px}
+#lbPrev.off,#lbNext.off{opacity:.25;pointer-events:none}
+#lbCount{position:absolute;bottom:calc(18px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);color:var(--paper);font-family:var(--hand);font-size:1.1rem;opacity:.85}
+/* timeline */
+#paneTimeline{overflow-y:auto;padding:8px 18px calc(96px + env(safe-area-inset-bottom))}
+#tlStats{
+  display:flex;gap:8px;justify-content:center;margin:8px 0 4px;font-family:var(--hand);
+  font-size:1.05rem;color:var(--ink-soft);flex-wrap:wrap;
+}
+#tlStats span{background:var(--white);border-radius:16px;padding:5px 12px;box-shadow:var(--shadow)}
+#tlStats b{color:var(--rose-deep)}
+.tl-month{font-family:var(--hand);font-size:1.4rem;color:var(--rose-deep);margin:20px 2px 4px}
+.tl-card{
+  display:flex;gap:12px;align-items:flex-start;background:var(--white);border-radius:6px;
+  box-shadow:var(--shadow);padding:10px;margin-top:10px;cursor:pointer;
+  animation:fadeUp .35s both;
+}
+.tl-card img{width:74px;height:74px;object-fit:cover;border-radius:4px;flex:none;background:var(--paper-deep)}
+.tl-card .noimg{width:74px;height:74px;display:flex;align-items:center;justify-content:center;font-size:1.6rem;background:var(--paper-deep);border-radius:4px;color:var(--ink-soft);flex:none}
+.tl-card h3{font-family:var(--hand);font-size:1.3rem;line-height:1.15}
+.tl-card time{font-size:.72rem;color:var(--ink-soft)}
+.tl-card p{font-size:.85rem;margin-top:3px;word-break:keep-all;color:var(--ink)}
+#tlEmpty{margin-top:40px;text-align:center;color:var(--ink-soft);font-family:var(--hand);font-size:1.35rem;line-height:1.6}
 /* toast */
 #toast{
   position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
@@ -230,6 +257,11 @@ nav button.active::after{
     <ul id="bucketList"></ul>
     <div id="bucketEmpty">아직 비어있어요.<br>둘이 하고 싶은 걸 적어볼까요?</div>
   </div>
+  <div class="pane" id="paneTimeline">
+    <div id="tlStats"></div>
+    <div id="tlList"></div>
+    <div id="tlEmpty">아직 기록이 없어요.<br>지도에서 첫 추억을 남겨볼까요?</div>
+  </div>
 </main>
 
 <div id="bucketAdd">
@@ -241,6 +273,7 @@ nav button.active::after{
 
 <nav>
   <button id="tabMap" class="active">🗺 지도</button>
+  <button id="tabTimeline">📖 타임라인</button>
   <button id="tabBucket">📝 버킷리스트</button>
 </nav>
 
@@ -298,7 +331,12 @@ nav button.active::after{
   <button id="dDelete">이 기록 지우기</button>
 </div>
 
-<div id="lightbox"><img id="lightboxImg" alt=""></div>
+<div id="lightbox">
+  <button id="lbPrev" aria-label="이전">‹</button>
+  <img id="lightboxImg" alt="">
+  <button id="lbNext" aria-label="다음">›</button>
+  <div id="lbCount"></div>
+</div>
 <div id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -465,17 +503,41 @@ function fitPins() {
 
 /* ───────── tabs ───────── */
 function switchTab(which) {
-  const isMap = which === "map";
-  $("paneMap").classList.toggle("active", isMap);
-  $("paneBucket").classList.toggle("active", !isMap);
-  $("tabMap").classList.toggle("active", isMap);
-  $("tabBucket").classList.toggle("active", !isMap);
-  $("bucketAdd").classList.toggle("show", !isMap);
-  $("fab").style.display = isMap ? "" : "none";
-  if (isMap) setTimeout(() => map.invalidateSize(), 60);
+  const T = { map: ["paneMap", "tabMap"], timeline: ["paneTimeline", "tabTimeline"], bucket: ["paneBucket", "tabBucket"] };
+  for (const [k, [pane, tab]] of Object.entries(T)) {
+    $(pane).classList.toggle("active", k === which);
+    $(tab).classList.toggle("active", k === which);
+  }
+  $("bucketAdd").classList.toggle("show", which === "bucket");
+  $("fab").style.display = which === "map" ? "" : "none";
+  if (which === "map") setTimeout(() => map.invalidateSize(), 60);
+  if (which === "timeline") renderTimeline();
 }
 $("tabMap").onclick = () => switchTab("map");
+$("tabTimeline").onclick = () => switchTab("timeline");
 $("tabBucket").onclick = () => switchTab("bucket");
+
+/* ───────── timeline ───────── */
+function renderTimeline() {
+  const alive = db.places.filter((p) => !p.deleted);
+  $("tlEmpty").style.display = alive.length ? "none" : "";
+  const photoN = alive.reduce((n, p) => n + ((p.photos || []).length), 0);
+  const doneN = db.bucket.filter((b) => !b.deleted && b.done).length;
+  $("tlStats").innerHTML = alive.length
+    ? `<span>함께 간 곳 <b>${alive.length}</b></span><span>사진 <b>${photoN}</b></span><span>이룬 버킷 <b>${doneN}</b></span>`
+    : "";
+  const sorted = [...alive].sort((a, b) => (b.date || "0000").localeCompare(a.date || "0000"));
+  let lastYM = "", html = "";
+  for (const p of sorted) {
+    const ym = DATE_RE.test(p.date) ? `${p.date.slice(0, 4)}년 ${+p.date.slice(5, 7)}월` : "날짜 미정";
+    if (ym !== lastYM) { html += `<div class="tl-month">${ym}</div>`; lastYM = ym; }
+    const ph = isDataImg(p.thumb) ? `<img src="${esc(p.thumb)}" alt="">` : `<div class="noimg">🖼</div>`;
+    html += `<div class="tl-card" data-id="${esc(p.id)}">${ph}<div><h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
+      (p.note ? `<p>${esc(p.note)}</p>` : "") + `</div></div>`;
+  }
+  $("tlList").innerHTML = html;
+  [...$("tlList").querySelectorAll(".tl-card")].forEach((c) => (c.onclick = () => openDetail(c.dataset.id)));
+}
 
 /* ───────── add place flow ───────── */
 let draft = null; // {lat,lng,name}
@@ -661,10 +723,32 @@ async function openDetail(id) {
     } catch (e) {}
   }
   $("dPhotos").innerHTML = srcs.map((s) => `<img src="${esc(s)}" alt="">`).join("");
-  [...$("dPhotos").children].forEach((im) => (im.onclick = () => { $("lightboxImg").src = im.src; openLayer("lightbox"); }));
+  [...$("dPhotos").children].forEach((im, i) => (im.onclick = () => openLightbox(srcs, i)));
   map.closePopup();
   openLayer("detail");
 }
+/* 사진 확대 — 좌우 넘기기(버튼·스와이프) */
+let lbSrcs = [], lbIdx = 0;
+function lbRender() {
+  $("lightboxImg").src = lbSrcs[lbIdx] || "";
+  $("lbCount").textContent = lbSrcs.length > 1 ? `${lbIdx + 1} / ${lbSrcs.length}` : "";
+  $("lbPrev").classList.toggle("off", lbIdx === 0);
+  $("lbNext").classList.toggle("off", lbIdx >= lbSrcs.length - 1);
+}
+function openLightbox(srcs, idx) { lbSrcs = srcs; lbIdx = idx; lbRender(); openLayer("lightbox"); }
+$("lbPrev").onclick = (e) => { e.stopPropagation(); if (lbIdx > 0) { lbIdx--; lbRender(); } };
+$("lbNext").onclick = (e) => { e.stopPropagation(); if (lbIdx < lbSrcs.length - 1) { lbIdx++; lbRender(); } };
+$("lightboxImg").onclick = (e) => e.stopPropagation();
+let lbTouchX = null;
+$("lightbox").addEventListener("touchstart", (e) => { lbTouchX = e.touches[0].clientX; }, { passive: true });
+$("lightbox").addEventListener("touchend", (e) => {
+  if (lbTouchX == null) return;
+  const dx = e.changedTouches[0].clientX - lbTouchX;
+  lbTouchX = null;
+  if (Math.abs(dx) < 40) return;
+  if (dx < 0 && lbIdx < lbSrcs.length - 1) { lbIdx++; lbRender(); }
+  else if (dx > 0 && lbIdx > 0) { lbIdx--; lbRender(); }
+}, { passive: true });
 $("dClose").onclick = () => closeLayer("detail");
 $("lightbox").onclick = () => closeLayer("lightbox");
 $("dDelete").onclick = () => {
@@ -1021,7 +1105,10 @@ async function fetchRemotePhoto(id) { // 상대가 올린 사진을 내 폰에 �
 if (syncOn()) { void syncNow(); setInterval(() => void syncNow(), 60000); }
 
 /* ───────── boot ───────── */
-function renderAll() { renderHeader(); renderPins(); renderBucket(); fitPins(); }
+function renderAll() {
+  renderHeader(); renderPins(); renderBucket(); fitPins();
+  if ($("paneTimeline").classList.contains("active")) renderTimeline();
+}
 try { renderAll(); } catch (e) { console.error(e); toast("일부 데이터를 표시하지 못했어요"); }
 /* 구버전 데이터 이관: localStorage에 통째로 든 사진 → IndexedDB (용량 해방) */
 (async function migratePhotos() {
