@@ -23,8 +23,18 @@ create table if not exists bucket (
   updated_at bigint default 0
 );
 
+create table if not exists meta (
+  id text primary key,
+  a text default '',
+  b text default '',
+  start text default '',
+  updated_at bigint default 0
+);
+
 alter table places enable row level security;
 alter table bucket enable row level security;
+alter table meta enable row level security;
+create policy "couple rw meta" on meta for all using (true) with check (true);
 
 -- 개인(커플) 스케일: anon 키 소지자에게 읽기/쓰기 허용.
 -- 키가 곧 열쇠이므로 링크/키를 둘 외에 공유하지 말 것.

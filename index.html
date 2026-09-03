@@ -333,7 +333,7 @@ function load() {
   }
   return { meta: { a: "", b: "", start: "" }, places: [], bucket: [] };
 }
-function save() {
+function save(quiet) {
   const next = JSON.stringify(db);
   try {
     localStorage.setItem(LS_KEY, next);
@@ -341,9 +341,22 @@ function save() {
     return true;
   } catch (e) {
     if (lastGood !== null) db = JSON.parse(lastGood); // 메모리 상태를 마지막 정상 저장본으로 롤백
-    alert("저장 공간이 가득 찼어요 😢\n설정 → 백업으로 파일을 저장한 뒤, 오래된 사진 몇 장을 지워주세요.");
+    if (quiet) { // 백그라운드(sync) 경로: alert 폭풍 방지, 1회만 토스트
+      if (!save._warned) { save._warned = true; toast("저장 공간 부족 — 설정에서 백업 후 정리해주세요"); }
+    } else {
+      alert("저장 공간이 가득 찼어요 😢\n설정 → 백업으로 파일을 저장한 뒤, 오래된 사진 몇 장을 지워주세요.");
+    }
     return false;
   }
+}
+/* 변경분만 서버로 밀기 위한 dirty 추적 */
+function markDirty(kind, id) {
+  try {
+    const d = JSON.parse(localStorage.getItem("cm_dirty") || '{"places":[],"bucket":[],"meta":false}');
+    if (kind === "meta") d.meta = true;
+    else if (!d[kind].includes(id)) d[kind].push(id);
+    localStorage.setItem("cm_dirty", JSON.stringify(d));
+  } catch (e) {}
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 /* 사진은 IndexedDB(Dexie)에 — localStorage 5MB 한계 해방. place.photos엔 사진 id만 */
@@ -598,25 +611,31 @@ function compress(file) {
 }
 
 $("btnSave").onclick = async () => {
+  if ($("btnSave")._busy) return; // 더블탭 중복 저장 방지
   const name = $("fName").value.trim();
   if (!name) { toast("장소 이름을 적어주세요"); return; }
-  const { lat, lng } = draft;
-  const photoIds = draft.photos.map((p) => p.id);
-  let thumb = "";
+  $("btnSave")._busy = true;
   try {
-    if (draft.photos.length) {
-      await ddb.photos.bulkPut(draft.photos.map((p) => ({ id: p.id, data: p.data })));
-      thumb = await makeThumb(draft.photos[0].data);
-    }
-  } catch (e) { toast("사진 저장 실패 — 다시 시도해주세요"); return; }
-  db.places.push({ id: uid(), name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), thumb, photos: photoIds, deleted: false, updated_at: Date.now() });
-  if (!save()) { ddb.photos.bulkDelete(photoIds).catch(() => {}); renderAll(); return; }
-  queuePhotoUpload(photoIds);
-  closeLayer("veilForm");
-  renderPins();
-  map.setView([lat, lng], Math.max(map.getZoom(), 13));
-  toast("우리 지도에 추가됐어요 ♥");
-  requestSync();
+    const { lat, lng } = draft;
+    const photoIds = draft.photos.map((p) => p.id);
+    let thumb = "";
+    try {
+      if (draft.photos.length) {
+        await ddb.photos.bulkPut(draft.photos.map((p) => ({ id: p.id, data: p.data })));
+        thumb = await makeThumb(draft.photos[0].data);
+      }
+    } catch (e) { toast("사진 저장 실패 — 다시 시도해주세요"); return; }
+    const pid = uid();
+    db.places.push({ id: pid, name, lat, lng, date: $("fDate").value, note: $("fNote").value.trim(), thumb, photos: photoIds, deleted: false, updated_at: Date.now() });
+    if (!save()) { ddb.photos.bulkDelete(photoIds).catch(() => {}); renderAll(); return; }
+    markDirty("places", pid);
+    queuePhotoUpload(photoIds);
+    closeLayer("veilForm");
+    renderPins();
+    map.setView([lat, lng], Math.max(map.getZoom(), 13));
+    toast("우리 지도에 추가됐어요 ♥");
+    requestSync();
+  } finally { $("btnSave")._busy = false; }
 };
 
 /* ───────── detail ───────── */
@@ -653,7 +672,11 @@ $("dDelete").onclick = () => {
   const p = db.places.find((x) => x.id === detailId);
   if (p) { p.deleted = true; p.updated_at = Date.now(); } // tombstone — 상대 폰에도 삭제 전파
   if (!save()) { renderAll(); return; }
-  if (p) ddb.photos.bulkDelete((p.photos || []).filter((s) => !isDataImg(s))).catch(() => {});
+  if (p) markDirty("places", p.id);
+  if (p) { // 다른 살아있는 추억이 참조하는 사진은 남김
+    const used = new Set(db.places.filter((x) => !x.deleted).flatMap((x) => (x.photos || []).filter((s) => !isDataImg(s))));
+    ddb.photos.bulkDelete((p.photos || []).filter((s) => !isDataImg(s) && !used.has(s))).catch(() => {});
+  }
   renderPins();
   closeLayer("detail");
   toast("지웠어요");
@@ -681,7 +704,8 @@ function renderBucket() {
       b.done = !b.done;
       b.doneDate = b.done ? localToday() : "";
       b.updated_at = Date.now();
-      const ok = save(); renderBucket(); requestSync();
+      const ok = save(); if (ok) markDirty("bucket", b.id);
+      renderBucket(); requestSync();
       if (ok && b.done) {
         toast("하나 더 이뤘네요! 🎉");
         if (typeof confetti === "function") confetti({ particleCount: 90, spread: 70, origin: { y: 0.75 }, colors: ["#d95d6d", "#f7f1e5", "#7d9b76", "#ffffff"] });
@@ -690,7 +714,8 @@ function renderBucket() {
     li.querySelector(".bk-del").onclick = () => {
       if (!confirm("이 항목을 지울까요?")) return;
       b.deleted = true; b.updated_at = Date.now(); // tombstone — 상대 폰에도 삭제 전파
-      save(); renderBucket(); requestSync();
+      if (save()) markDirty("bucket", b.id);
+      renderBucket(); requestSync();
     };
     const pin = li.querySelector(".bk-pin");
     if (pin) pin.onclick = () => { switchTab("map"); openLayer("veilSearch"); $("searchInput").value = b.title; doSearch(b.title); };
@@ -700,8 +725,10 @@ function renderBucket() {
 function addBucket() {
   const v = $("bucketInput").value.trim();
   if (!v) return;
-  db.bucket.unshift({ id: uid(), title: v, done: false, doneDate: "", deleted: false, updated_at: Date.now() });
+  const bid = uid();
+  db.bucket.unshift({ id: bid, title: v, done: false, doneDate: "", deleted: false, updated_at: Date.now() });
   if (!save()) { renderBucket(); return; }
+  markDirty("bucket", bid);
   $("bucketInput").value = "";
   renderBucket(); requestSync();
 }
@@ -715,20 +742,26 @@ $("btnSettings").onclick = () => {
 };
 $("btnSettingsClose").onclick = () => closeLayer("veilSettings");
 $("btnSettingsSave").onclick = () => {
-  db.meta = { a: $("sNameA").value.trim(), b: $("sNameB").value.trim(), start: $("sStart").value };
+  db.meta = { a: $("sNameA").value.trim(), b: $("sNameB").value.trim(), start: $("sStart").value, updated_at: Date.now() };
   if (!save()) { renderHeader(); return; }
+  markDirty("meta");
   renderHeader();
   closeLayer("veilSettings");
   toast("저장했어요");
+  requestSync();
 };
 $("btnExport").onclick = async () => {
-  // 사진(IndexedDB)까지 포함한 완전 백업
+  // 사진(IndexedDB)까지 포함한 완전 백업 — 상대가 올려 내 폰에 없는 사진은 서버에서 받아옴
   const payload = { ...db, photoStore: {} };
   try {
-    const ids = db.places.flatMap((p) => (p.photos || []).filter((s) => typeof s === "string" && !isDataImg(s)));
+    const ids = [...new Set(db.places.flatMap((p) => (p.photos || []).filter((s) => typeof s === "string" && !isDataImg(s))))];
     if (ids.length) {
       const rows = await ddb.photos.bulkGet(ids);
-      rows.forEach((r) => { if (r && isDataImg(r.data)) payload.photoStore[r.id] = r.data; });
+      for (let i = 0; i < ids.length; i++) {
+        const r = rows[i];
+        if (r && isDataImg(r.data)) payload.photoStore[ids[i]] = r.data;
+        else { const remote = await fetchRemotePhoto(ids[i]); if (remote) payload.photoStore[ids[i]] = remote; }
+      }
     }
   } catch (e) {}
   const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
@@ -768,14 +801,18 @@ $("importFile").addEventListener("change", (e) => {
       const photoIds = [];
       let firstData = "";
       (Array.isArray(p.photos) ? p.photos : []).forEach((s) => {
-        let data = "";
-        if (isDataImg(s)) data = s;                     // 구버전: 사진이 통째로
-        else if (typeof s === "string" && isDataImg(store[s])) data = store[s]; // 신버전: id → 저장소
-        if (!data) return;
-        const phId = uid();
-        photoQueue.push({ id: phId, data });
-        photoIds.push(phId);
-        if (!firstData) firstData = data;
+        if (isDataImg(s)) { // 구버전: 사진이 통째로 → 새 id 발급
+          const phId = uid();
+          photoQueue.push({ id: phId, data: s });
+          photoIds.push(phId);
+          if (!firstData) firstData = s;
+        } else if (typeof s === "string" && s) { // 신버전: 원래 id 유지 (동기화 정체성 보존)
+          photoIds.push(s);
+          if (isDataImg(store[s])) {
+            photoQueue.push({ id: s, data: store[s] });
+            if (!firstData) firstData = store[s];
+          } // 백업에 사진이 없어도 id는 남김 — 서버에서 받아올 수 있음
+        }
       });
       let thumb = isDataImg(p.thumb) ? p.thumb : "";
       if (!thumb && firstData) { try { thumb = await makeThumb(firstData); } catch (e) {} }
@@ -788,9 +825,10 @@ $("importFile").addEventListener("change", (e) => {
         thumb,
         photos: photoIds,
         deleted: !!p.deleted,
-        updated_at: Number(p.updated_at) || 0,
+        updated_at: Number(p.updated_at) || Date.now(),
       });
-      queuePhotoUpload(photoIds);
+      markDirty("places", id);
+      queuePhotoUpload(photoQueue.filter((q) => photoIds.includes(q.id)).map((q) => q.id));
     }
     d.bucket.forEach((b) => {
       if (!b) return;
@@ -799,7 +837,8 @@ $("importFile").addEventListener("change", (e) => {
       const id = strOr(b.id, "") || uid();
       if (bids.has(id)) return;
       bids.add(id);
-      db.bucket.push({ id, title, done: !!b.done, doneDate: DATE_RE.test(b.doneDate) ? b.doneDate : "", deleted: !!b.deleted, updated_at: Number(b.updated_at) || 0 });
+      db.bucket.push({ id, title, done: !!b.done, doneDate: DATE_RE.test(b.doneDate) ? b.doneDate : "", deleted: !!b.deleted, updated_at: Number(b.updated_at) || Date.now() });
+      markDirty("bucket", id);
     });
     if (!db.meta.a && d.meta && typeof d.meta === "object") {
       db.meta = {
@@ -817,6 +856,7 @@ $("importFile").addEventListener("change", (e) => {
     }
     renderAll();
     toast("불러왔어요 — 합쳐서 보관 중");
+    requestSync();
   };
   r.readAsText(f);
   e.target.value = "";
@@ -842,84 +882,131 @@ function requestSync() { // 저장 직후 3초 디바운스 푸시
 }
 function queuePhotoUpload(ids) {
   if (!ids.length) return;
-  const q = JSON.parse(localStorage.getItem("cm_upq") || "[]");
-  localStorage.setItem("cm_upq", JSON.stringify([...new Set([...q, ...ids])]));
+  try {
+    const q = JSON.parse(localStorage.getItem("cm_upq") || "[]");
+    localStorage.setItem("cm_upq", JSON.stringify([...new Set([...q, ...ids])]));
+  } catch (e) { toast("사진 업로드 예약 실패"); }
 }
 async function flushPhotoUploads() {
   const q = JSON.parse(localStorage.getItem("cm_upq") || "[]");
   if (!q.length) return;
-  const remain = [];
+  const done = new Set();
+  const liveRefs = new Set(db.places.filter((p) => !p.deleted).flatMap((p) => (p.photos || []).filter((s) => !isDataImg(s))));
   for (const id of q) {
     try {
       const row = await ddb.photos.get(id);
-      if (!row || !isDataImg(row.data)) continue; // 사진이 없으면 조용히 버림
+      if (!row || !isDataImg(row.data)) {
+        if (!liveRefs.has(id)) done.add(id); // 아무도 안 쓰는 id만 버림. 참조 중이면 보존(복구 기회)
+        continue;
+      }
       const blob = await (await fetch(row.data)).blob();
       const { error } = await sb.storage.from("photos").upload(`${id}.jpg`, blob, { upsert: true, contentType: "image/jpeg" });
-      if (error) remain.push(id);
-    } catch (e) { remain.push(id); }
+      if (!error) done.add(id);
+    } catch (e) {}
   }
-  localStorage.setItem("cm_upq", JSON.stringify(remain));
+  // 재읽기 후 성공분만 제거 — 업로드 중 새로 큐된 id 보존 (경합 방지)
+  try {
+    const cur = JSON.parse(localStorage.getItem("cm_upq") || "[]");
+    localStorage.setItem("cm_upq", JSON.stringify(cur.filter((id) => !done.has(id))));
+  } catch (e) {}
 }
 function mergeLWW(localArr, remoteRows, normalize) {
-  // last-write-wins by updated_at. 반환: [바뀜 여부]
+  // last-write-wins by updated_at. 동률+내용 다름 → 원격 승(수렴 보장)
   let changed = false;
   const byId = new Map(localArr.map((x) => [x.id, x]));
   for (const raw of remoteRows) {
     const r = normalize(raw);
     if (!r) continue;
     const l = byId.get(r.id);
-    if (!l) { localArr.push(r); byId.set(r.id, r); changed = true; }
-    else if ((r.updated_at || 0) > (l.updated_at || 0)) { Object.assign(l, r); changed = true; }
+    if (!l) { localArr.push(r); byId.set(r.id, r); changed = true; continue; }
+    const rt = r.updated_at || 0, lt = l.updated_at || 0;
+    if (rt > lt) { Object.assign(l, r); changed = true; }
+    else if (rt === lt) {
+      const keys = Object.keys(r).filter((k) => k !== "updated_at");
+      if (!keys.every((k) => JSON.stringify(l[k]) === JSON.stringify(r[k]))) { Object.assign(l, r); changed = true; }
+    }
   }
   return changed;
 }
+let syncPending = false;
 async function syncNow() {
-  if (!syncOn() || syncing) return;
+  if (!syncOn()) return;
+  if (syncing) { syncPending = true; return; }
   syncing = true;
   try {
     if (!sb) sb = window.supabase.createClient(SYNC.url, SYNC.key);
     // 1) pull + merge (LWW)
-    const [pr, br] = await Promise.all([sb.from("places").select("*"), sb.from("bucket").select("*")]);
-    let changed = false;
-    if (!pr.error && Array.isArray(pr.data)) {
-      changed = mergeLWW(db.places, pr.data, (r) => {
-        if (typeof r.id !== "string" || !Number.isFinite(+r.lat) || !Number.isFinite(+r.lng)) return null;
-        return {
-          id: r.id, name: String(r.name || "").slice(0, 60), lat: +r.lat, lng: +r.lng,
-          date: DATE_RE.test(r.date) ? r.date : "", note: String(r.note || "").slice(0, 120),
-          thumb: isDataImg(r.thumb) ? r.thumb : "",
-          photos: (Array.isArray(r.photos) ? r.photos : []).filter((s) => typeof s === "string"),
-          deleted: !!r.deleted, updated_at: Number(r.updated_at) || 0,
-        };
-      }) || changed;
-    }
-    if (!br.error && Array.isArray(br.data)) {
-      changed = mergeLWW(db.bucket, br.data, (r) => {
-        if (typeof r.id !== "string" || typeof r.title !== "string" || !r.title) return null;
-        return {
-          id: r.id, title: r.title.slice(0, 80), done: !!r.done,
-          doneDate: DATE_RE.test(r.done_date) ? r.done_date : "",
-          deleted: !!r.deleted, updated_at: Number(r.updated_at) || 0,
-        };
-      }) || changed;
-    }
-    if (changed) { save(); renderAll(); }
-    // 2) push (전체 upsert — 개인 스케일에서 단순·안전)
-    await Promise.all([
-      sb.from("places").upsert(db.places.map((p) => ({
-        id: p.id, name: p.name, lat: p.lat, lng: p.lng, date: p.date || "", note: p.note || "",
-        thumb: p.thumb || "", photos: (p.photos || []).filter((s) => !isDataImg(s)),
-        deleted: !!p.deleted, updated_at: p.updated_at || 0,
-      }))),
-      sb.from("bucket").upsert(db.bucket.map((b) => ({
-        id: b.id, title: b.title, done: !!b.done, done_date: b.doneDate || "",
-        deleted: !!b.deleted, updated_at: b.updated_at || 0,
-      }))),
+    const [pr, br, mr] = await Promise.all([
+      sb.from("places").select("*"), sb.from("bucket").select("*"),
+      sb.from("meta").select("*").eq("id", "meta").maybeSingle(),
     ]);
+    if (pr.error || br.error) return; // pull 실패 시 push 금지 (낡은 상태로 서버 덮어쓰기 방지)
+    let changed = false;
+    changed = mergeLWW(db.places, pr.data || [], (r) => {
+      if (typeof r.id !== "string" || !Number.isFinite(+r.lat) || !Number.isFinite(+r.lng)) return null;
+      return {
+        id: r.id, name: String(r.name || "").slice(0, 60), lat: +r.lat, lng: +r.lng,
+        date: DATE_RE.test(r.date) ? r.date : "", note: String(r.note || "").slice(0, 120),
+        thumb: isDataImg(r.thumb) ? r.thumb : "",
+        photos: (Array.isArray(r.photos) ? r.photos : []).filter((s) => typeof s === "string"),
+        deleted: !!r.deleted, updated_at: Number(r.updated_at) || 0,
+      };
+    }) || changed;
+    changed = mergeLWW(db.bucket, br.data || [], (r) => {
+      if (typeof r.id !== "string" || typeof r.title !== "string" || !r.title) return null;
+      return {
+        id: r.id, title: r.title.slice(0, 80), done: !!r.done,
+        doneDate: DATE_RE.test(r.done_date) ? r.done_date : "",
+        deleted: !!r.deleted, updated_at: Number(r.updated_at) || 0,
+      };
+    }) || changed;
+    if (!mr.error && mr.data && (Number(mr.data.updated_at) || 0) > (db.meta.updated_at || 0)) {
+      db.meta = {
+        a: String(mr.data.a || "").slice(0, 12), b: String(mr.data.b || "").slice(0, 12),
+        start: DATE_RE.test(mr.data.start) ? mr.data.start : "",
+        updated_at: Number(mr.data.updated_at) || 0,
+      };
+      changed = true; renderHeader();
+    }
+    if (changed && !save(true)) return; // 저장 실패(용량) → 롤백된 낡은 상태를 밀지 않음
+    if (changed) renderAll();
+    // 2) push — 내 기기에서 바뀐 것만 (dirty)
+    const dirty = JSON.parse(localStorage.getItem("cm_dirty") || '{"places":[],"bucket":[],"meta":false}');
+    const pushP = db.places.filter((p) => dirty.places.includes(p.id));
+    const pushB = db.bucket.filter((b) => dirty.bucket.includes(b.id));
+    const jobs = [];
+    if (pushP.length) jobs.push(sb.from("places").upsert(pushP.map((p) => ({
+      id: p.id, name: p.name, lat: p.lat, lng: p.lng, date: p.date || "", note: p.note || "",
+      thumb: p.thumb || "", photos: (p.photos || []).filter((s) => !isDataImg(s)),
+      deleted: !!p.deleted, updated_at: p.updated_at || 0,
+    }))));
+    if (pushB.length) jobs.push(sb.from("bucket").upsert(pushB.map((b) => ({
+      id: b.id, title: b.title, done: !!b.done, done_date: b.doneDate || "",
+      deleted: !!b.deleted, updated_at: b.updated_at || 0,
+    }))));
+    if (dirty.meta) jobs.push(sb.from("meta").upsert({
+      id: "meta", a: db.meta.a || "", b: db.meta.b || "", start: db.meta.start || "",
+      updated_at: db.meta.updated_at || 0,
+    }));
+    const results = await Promise.all(jobs);
+    if (results.every((r) => !r.error)) {
+      // 성공분만 dirty에서 제거 (푸시 중 새로 dirty된 것은 보존)
+      try {
+        const cur = JSON.parse(localStorage.getItem("cm_dirty") || '{"places":[],"bucket":[],"meta":false}');
+        const pushedP = new Set(pushP.map((p) => p.id)), pushedB = new Set(pushB.map((b) => b.id));
+        cur.places = cur.places.filter((id) => !pushedP.has(id));
+        cur.bucket = cur.bucket.filter((id) => !pushedB.has(id));
+        if (dirty.meta) cur.meta = false;
+        localStorage.setItem("cm_dirty", JSON.stringify(cur));
+      } catch (e) {}
+    }
     // 3) 사진 업로드 큐 처리
     await flushPhotoUploads();
   } catch (e) { console.warn("sync fail", e); }
-  syncing = false;
+  finally {
+    syncing = false;
+    if (syncPending) { syncPending = false; void syncNow(); }
+  }
 }
 async function fetchRemotePhoto(id) { // 상대가 올린 사진을 내 폰에 캐시
   if (!syncOn() || !sb) return "";
@@ -949,9 +1036,16 @@ try { renderAll(); } catch (e) { console.error(e); toast("일부 데이터를 �
     try { await ddb.photos.bulkPut(queue); } catch (e) { return; } // 실패 시 원본 유지
     if (!isDataImg(p.thumb) && queue[0]) { try { p.thumb = await makeThumb(queue[0].data); } catch (e) {} }
     p.photos = ids;
+    p.updated_at = Date.now(); // 상대 폰이 새 photo id를 받아가도록
+    markDirty("places", p.id);
+    queuePhotoUpload(queue.map((q) => q.id));
   }
-  if (save()) renderPins();
+  if (save()) { renderPins(); requestSync(); }
 })();
+/* 브라우저가 사진 저장소(IndexedDB)를 함부로 비우지 않게 요청 */
+try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) {}
+/* 앱 나갈 때 못 보낸 변경분 밀어보기 */
+addEventListener("pagehide", () => { if (syncOn()) void syncNow(); });
 if (!db.meta.start && !db.places.length && !db.bucket.length) {
   setTimeout(() => openLayer("veilSettings"), 700);
 }
