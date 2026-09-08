@@ -28,6 +28,7 @@
   --shadow:0 8px 32px rgba(28,25,23,.09);
   --hand:'Wanted Sans Variable','Wanted Sans',Pretendard,sans-serif; --body:'Wanted Sans Variable','Wanted Sans',Pretendard,sans-serif;
   --squish:cubic-bezier(.34,1.56,.64,1);
+  --grad:linear-gradient(135deg,#f43f5e 0%,#ff9159 100%); /* 시그니처 그라데이션 */
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overscroll-behavior:none}
@@ -375,6 +376,24 @@ nav button .em{width:1.15em;height:1.15em;margin-right:2px}
 #names .em{width:0.95em;height:0.95em;vertical-align:-0.08em;margin:0 2px}
 .heart-pin{cursor:pointer;filter:drop-shadow(0 4px 8px rgba(28,25,23,.28))}
 .heart-pin svg{display:block;transform-origin:50% 90%;animation:pinDrop .45s var(--squish) both}
+/* ── 시그니처 그라데이션 브랜드 ── */
+#names{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
+#fab{background:var(--grad);box-shadow:0 10px 26px rgba(244,63,94,.4)}
+nav button.active{background:var(--grad);color:#fff}
+.btn-rose{background:var(--grad)}
+#bucketAdd button{background:var(--grad)}
+.bk-check.done{background:var(--grad);border-color:#f43f5e}
+#anniList li.next .an-d{background:var(--grad)}
+/* ── 사진-우선 타임라인 카드 (틴더식) ── */
+.tl-card{display:block;position:relative;height:212px;padding:0;overflow:hidden;
+  background-size:cover;background-position:center;backdrop-filter:none;-webkit-backdrop-filter:none}
+.tl-card.nophoto{background-image:linear-gradient(135deg,#ffe3d8,#eadffb)}
+.tl-card .tl-ph-em{position:absolute;top:34%;left:50%;transform:translate(-50%,-50%);width:56px;height:56px}
+.tl-ov{position:absolute;left:0;right:0;bottom:0;padding:48px 16px 14px;color:#fff;
+  background:linear-gradient(transparent,rgba(24,12,8,.74))}
+.tl-ov h3{font-weight:800;font-size:1.15rem;letter-spacing:-.02em}
+.tl-ov time{font-size:.72rem;opacity:.85;font-weight:600}
+.tl-ov p{font-size:.85rem;margin-top:2px;opacity:.95;word-break:keep-all}
 </style>
 </head>
 <body>
@@ -561,7 +580,7 @@ function makeThumb(dataURL) { // 팝업용 미니 썸네일 (localStorage에 보
   return new Promise((res) => {
     const img = new Image();
     img.onload = () => {
-      const MAX = 320;
+      const MAX = 640; // 사진-우선 카드 배경용으로 상향
       let { width: w, height: h } = img;
       if (Math.max(w, h) > MAX) { const k = MAX / Math.max(w, h); w = Math.round(w * k); h = Math.round(h * k); }
       const c = document.createElement("canvas");
@@ -636,7 +655,7 @@ const map = new maplibregl.Map({
   center: [127.8, 36.5], zoom: 5.6,
   attributionControl: { compact: true },
 });
-const HEART_SVG = `<svg viewBox="0 0 36 34" width="34" height="32"><path d="M18 31C9.5 24 4 18.6 4 12.6 4 7.8 7.8 4 12.4 4c2.3 0 4.4 1.1 5.6 2.9C19.2 5.1 21.3 4 23.6 4 28.2 4 32 7.8 32 12.6c0 6-5.5 11.4-14 18.4z" fill="#f43f5e" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
+const HEART_SVG = `<svg viewBox="0 0 36 34" width="34" height="32"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f43f5e"/><stop offset="1" stop-color="#ff9159"/></linearGradient></defs><path d="M18 31C9.5 24 4 18.6 4 12.6 4 7.8 7.8 4 12.4 4c2.3 0 4.4 1.1 5.6 2.9C19.2 5.1 21.3 4 23.6 4 28.2 4 32 7.8 32 12.6c0 6-5.5 11.4-14 18.4z" fill="url(#hg)" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
 let ps = null; // Kakao 장소검색 (지도 없이 검색만 사용)
 try { kakao.maps.load(() => { ps = new kakao.maps.services.Places(); }); } catch (e) {}
 const pins = [];
@@ -714,8 +733,11 @@ function renderTimeline() {
   for (const p of sorted) {
     const ym = DATE_RE.test(p.date) ? `${p.date.slice(0, 4)}년 ${+p.date.slice(5, 7)}월` : "날짜 미정";
     if (ym !== lastYM) { html += `<div class="tl-month">${ym}</div>`; lastYM = ym; }
-    const ph = isDataImg(p.thumb) ? `<img src="${esc(p.thumb)}" alt="">` : `<div class="noimg"><img src="assets/emoji/picture.png" alt="" style="width:34px;height:34px"></div>`;
-    html += `<div class="tl-card" data-id="${esc(p.id)}">${ph}<div><h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
+    const ph = isDataImg(p.thumb) ? p.thumb : "";
+    html += `<div class="tl-card${ph ? "" : " nophoto"}" data-id="${esc(p.id)}"` +
+      (ph ? ` style="background-image:url('${ph}')"` : "") + `>` +
+      (ph ? "" : `<img class="tl-ph-em" src="assets/emoji/picture.png" alt="">`) +
+      `<div class="tl-ov"><h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
       (p.note ? `<p>${esc(p.note)}</p>` : "") + `</div></div>`;
   }
   $("tlList").innerHTML = html;
