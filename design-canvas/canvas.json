@@ -1,0 +1,12 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "title": "지도 탭", "x": 0, "y": 0, "w": 390, "h": 844 },
+    { "file": "Timeline.dc.html", "title": "타임라인 탭", "x": 480, "y": 0, "w": 390, "h": 844 },
+    { "file": "Bucket.dc.html", "title": "버킷리스트 탭", "x": 960, "y": 0, "w": 390, "h": 844 },
+    { "file": "AddSheet.dc.html", "title": "추억 추가 시트", "x": 1440, "y": 0, "w": 390, "h": 844 }
+  ],
+  "annotations": [
+    { "id": "guide-note", "x": 0, "y": -170, "w": 320, "text": "우리의 기억 — 실제 앱 화면 목업\n요소를 클릭해 색·글자·배치를 바로 고칠 수 있어요.\n고친 내용은 Claude에게 말하면 실제 앱에 반영됩니다." }
+  ],
+  "launch": { "view": "canvas" }
+}

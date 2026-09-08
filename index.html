@@ -367,6 +367,11 @@ nav button.active::after{display:none}
 .pol time{font-weight:500}
 .pol .more{border-radius:999px;background:rgba(28,25,23,.06);color:var(--ink);font-weight:600;font-size:.82rem;padding:8px}
 /* 지도 위 핀 */
+/* Fluent 3D 이모지 아이콘 */
+.em{width:1.25em;height:1.25em;vertical-align:-0.25em;object-fit:contain}
+.em-lg{width:64px;height:64px;display:block;margin:0 auto 10px}
+nav button .em{width:1.15em;height:1.15em;margin-right:2px}
+#names .em{width:0.95em;height:0.95em;vertical-align:-0.08em;margin:0 2px}
 .heart-pin{cursor:pointer;filter:drop-shadow(0 4px 8px rgba(28,25,23,.28))}
 .heart-pin svg{display:block;transform-origin:50% 90%;animation:pinDrop .45s var(--squish) both}
 </style>
@@ -387,12 +392,12 @@ nav button.active::after{display:none}
   <div class="pane" id="paneBucket">
     <div class="bucket-head">우리의 버킷리스트 <small id="bucketCount"></small></div>
     <ul id="bucketList"></ul>
-    <div id="bucketEmpty">아직 비어있어요.<br>둘이 하고 싶은 걸 적어볼까요?</div>
+    <div id="bucketEmpty"><img class="em-lg" src="assets/emoji/sparkles.png" alt="">아직 비어있어요.<br>둘이 하고 싶은 걸 적어볼까요?</div>
   </div>
   <div class="pane" id="paneTimeline">
     <div id="tlStats"></div>
     <div id="tlList"></div>
-    <div id="tlEmpty">아직 기록이 없어요.<br>지도에서 첫 추억을 남겨볼까요?</div>
+    <div id="tlEmpty"><img class="em-lg" src="assets/emoji/camera.png" alt="">아직 기록이 없어요.<br>지도에서 첫 추억을 남겨볼까요?</div>
   </div>
 </main>
 
@@ -404,9 +409,9 @@ nav button.active::after{display:none}
 <button id="fab" aria-label="장소 추가">+</button>
 
 <nav>
-  <button id="tabMap" class="active">🗺 지도</button>
-  <button id="tabTimeline">📖 타임라인</button>
-  <button id="tabBucket">📝 버킷리스트</button>
+  <button id="tabMap" class="active"><img class="em" src="assets/emoji/map.png" alt=""> 지도</button>
+  <button id="tabTimeline"><img class="em" src="assets/emoji/book.png" alt=""> 타임라인</button>
+  <button id="tabBucket"><img class="em" src="assets/emoji/memo.png" alt=""> 버킷리스트</button>
 </nav>
 
 <!-- add place: step1 search -->
@@ -441,7 +446,7 @@ nav button.active::after{display:none}
 <!-- anniversaries -->
 <div class="veil" id="veilAnni">
   <div class="sheet">
-    <h2>우리의 기념일 🎂</h2>
+    <h2><img class="em" src="assets/emoji/cake.png" alt=""> 우리의 기념일</h2>
     <ul id="anniList"></ul>
     <button class="btn btn-ghost" id="btnAnniClose">닫기</button>
   </div>
@@ -450,9 +455,9 @@ nav button.active::after{display:none}
 <!-- city collection -->
 <div class="veil" id="veilCity">
   <div class="sheet">
-    <h2>우리가 정복한 도시 🏙</h2>
+    <h2><img class="em" src="assets/emoji/city.png" alt=""> 우리가 정복한 도시</h2>
     <div id="cityGrid"></div>
-    <div id="cityEmpty" style="display:none;text-align:center;color:var(--ink-soft);padding:20px 0;font-size:.9rem">아직 없어요 — 첫 추억을 남기면 도시가 모여요</div>
+    <div id="cityEmpty" style="display:none;text-align:center;color:var(--ink-soft);padding:20px 0;font-size:.9rem"><img class="em-lg" src="assets/emoji/city.png" alt="">아직 없어요 — 첫 추억을 남기면 도시가 모여요</div>
     <button class="btn btn-ghost" id="btnCityClose">닫기</button>
   </div>
 </div>
@@ -612,7 +617,8 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 /* ───────── header / d-day ───────── */
 function renderHeader() {
   const { a, b, start } = db.meta;
-  $("names").innerHTML = a && b ? `${esc(a)}<span class="amp">♥</span>${esc(b)}` : `우리<span class="amp">♥</span>지도`;
+  const amp = `<img class="em" src="assets/emoji/sparkheart.png" alt="♥">`;
+  $("names").innerHTML = a && b ? `${esc(a)}${amp}${esc(b)}` : `우리${amp}지도`;
   if (start) {
     const days = Math.floor((Date.now() - new Date(start + "T00:00:00")) / 864e5) + 1;
     let t = days > 0 ? `함께한 지 ${days.toLocaleString()}일` : "";
@@ -646,7 +652,7 @@ function renderPins() {
     const box = document.createElement("div");
     box.className = "pol";
     box.innerHTML =
-      (ph ? `<img src="${esc(ph)}" alt="">` : `<div class="noimg">🖼</div>`) +
+      (ph ? `<img src="${esc(ph)}" alt="">` : `<div class="noimg"><img src="assets/emoji/picture.png" alt="" style="width:34px;height:34px"></div>`) +
       `<h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
       (p.note ? `<p>${esc(p.note)}</p>` : "") +
       `<button class="more">자세히 보기</button>`;
@@ -690,9 +696,11 @@ function renderTimeline() {
   const cityN = cityMap().size;
   const nx = nextAnni();
   $("tlStats").innerHTML = alive.length || nx
-    ? `<span>함께 간 곳 <b>${alive.length}</b></span><span>사진 <b>${photoN}</b></span><span>버킷 <b>${doneN}</b></span>` +
-      `<span data-act="city" style="cursor:pointer">🏙 도시 <b>${cityN}</b></span>` +
-      (nx ? `<span data-act="anni" style="cursor:pointer">🎂 ${nx.name} <b>${nx.diff === 0 ? "오늘" : "D-" + nx.diff}</b></span>` : "")
+    ? `<span><img class="em" src="assets/emoji/pin.png" alt=""> <b>${alive.length}</b>곳</span>` +
+      `<span><img class="em" src="assets/emoji/camera.png" alt=""> <b>${photoN}</b>장</span>` +
+      `<span><img class="em" src="assets/emoji/party.png" alt=""> <b>${doneN}</b>개</span>` +
+      `<span data-act="city" style="cursor:pointer"><img class="em" src="assets/emoji/city.png" alt=""> <b>${cityN}</b></span>` +
+      (nx ? `<span data-act="anni" style="cursor:pointer"><img class="em" src="assets/emoji/cake.png" alt=""> ${nx.name} <b>${nx.diff === 0 ? "오늘" : "D-" + nx.diff}</b></span>` : "")
     : "";
   $("tlStats").querySelectorAll("[data-act]").forEach((el) => {
     el.onclick = () => {
@@ -705,7 +713,7 @@ function renderTimeline() {
   for (const p of sorted) {
     const ym = DATE_RE.test(p.date) ? `${p.date.slice(0, 4)}년 ${+p.date.slice(5, 7)}월` : "날짜 미정";
     if (ym !== lastYM) { html += `<div class="tl-month">${ym}</div>`; lastYM = ym; }
-    const ph = isDataImg(p.thumb) ? `<img src="${esc(p.thumb)}" alt="">` : `<div class="noimg">🖼</div>`;
+    const ph = isDataImg(p.thumb) ? `<img src="${esc(p.thumb)}" alt="">` : `<div class="noimg"><img src="assets/emoji/picture.png" alt="" style="width:34px;height:34px"></div>`;
     html += `<div class="tl-card" data-id="${esc(p.id)}">${ph}<div><h3>${esc(p.name)}</h3><time>${fmtDate(p.date)}</time>` +
       (p.note ? `<p>${esc(p.note)}</p>` : "") + `</div></div>`;
   }
