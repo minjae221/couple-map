@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<title>우리의 지도</title>
+<title>VIP's map</title>
 <meta name="theme-color" content="#faf6f0">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
@@ -380,7 +380,7 @@ nav button .em{width:1.15em;height:1.15em;margin-right:2px}
 <body>
 
 <header>
-  <h1 id="names">우리<span class="amp">♥</span>지도</h1>
+  <h1 id="names">VIP's map</h1>
   <div id="dday"></div>
   <button id="btnSettings" aria-label="설정">⚙</button>
 </header>
@@ -619,7 +619,7 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 function renderHeader() {
   const { a, b, start } = db.meta;
   const amp = `<img class="em" src="assets/emoji/sparkheart.png" alt="♥">`;
-  $("names").innerHTML = a && b ? `${esc(a)}${amp}${esc(b)}` : `우리${amp}지도`;
+  $("names").innerHTML = a && b ? `${esc(a)}${amp}${esc(b)}` : `VIP’s${amp}map`;
   if (start) {
     const days = Math.floor((Date.now() - new Date(start + "T00:00:00")) / 864e5) + 1;
     let t = days > 0 ? `함께한 지 ${days.toLocaleString()}일` : "";
@@ -1112,7 +1112,7 @@ $("btnExport").onclick = async () => {
   const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `우리의지도_백업_${localToday()}.json`;
+  a.download = `VIPs_map_backup_${localToday()}.json`;
   document.body.appendChild(a);
   a.click();
   a.remove();

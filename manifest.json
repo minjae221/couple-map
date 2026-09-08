@@ -1,6 +1,6 @@
 {
-  "name": "우리의 지도",
-  "short_name": "우리의 지도",
+  "name": "VIP's map",
+  "short_name": "VIP's map",
   "description": "둘이 함께 간 곳과 버킷리스트를 모으는 우리만의 아카이브",
   "start_url": "./",
   "display": "standalone",
