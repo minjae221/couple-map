@@ -619,7 +619,7 @@ function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add
 function renderHeader() {
   const { a, b, start } = db.meta;
   const amp = `<img class="em" src="assets/emoji/sparkheart.png" alt="♥">`;
-  $("names").innerHTML = a && b ? `${esc(a)}${amp}${esc(b)}` : `VIP’s map ${amp}`;
+  $("names").innerHTML = `VIP’s map ${amp}`;
   if (start) {
     const days = Math.floor((Date.now() - new Date(start + "T00:00:00")) / 864e5) + 1;
     let t = days > 0 ? `함께한 지 ${days.toLocaleString()}일` : "";
