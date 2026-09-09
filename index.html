@@ -1247,16 +1247,18 @@ async function mergeBackup(d) {
     toast("불러왔어요 — 합쳐서 보관 중");
     requestSync();
 }
-/* ?demo=1 로 열면 샘플 데이터 자동 주입 (미리보기용) */
-if (new URLSearchParams(location.search).get("demo")) {
+/* ?demo=clear 로 열면 샘플 데이터 제거 (1회용 청소) */
+if (new URLSearchParams(location.search).get("demo") === "clear") {
   (async () => {
+    const had = db.places.some((p) => String(p.id).startsWith("smpl"));
+    db.places = db.places.filter((p) => !String(p.id).startsWith("smpl"));
+    db.bucket = db.bucket.filter((b) => !String(b.id).startsWith("smb"));
+    if (db.meta.start === "2026-02-14") db.meta = { a: "", b: "", start: "", updated_at: Date.now() };
     try {
-      const d = await (await fetch("sample-data.json")).json();
-      if (!db.places.some((p) => String(p.id).startsWith("smpl"))) {
-        await mergeBackup(d);
-        toast("샘플 추억을 채워뒀어요 💗");
-      }
-    } catch (e) { toast("샘플 로드 실패"); }
+      const keys = await ddb.photos.toCollection().primaryKeys();
+      await ddb.photos.bulkDelete(keys.filter((k) => String(k).startsWith("smp")));
+    } catch (e) {}
+    if (save()) { renderAll(); if (had) toast("샘플을 정리했어요 ✨"); }
   })();
 }
 
