@@ -10,8 +10,8 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<link rel="preconnect" href="https://a.basemaps.cartocdn.com">
-<link rel="preconnect" href="https://b.basemaps.cartocdn.com">
+<link rel="preconnect" href="https://mt0.google.com">
+<link rel="preconnect" href="https://mt1.google.com">
 <link rel="preconnect" href="https://dapi.kakao.com">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/wanteddev/wanted-sans@v1.0.3/packages/wanted-sans/fonts/webfonts/variable/split/WantedSansVariable.min.css">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
@@ -654,18 +654,18 @@ function renderHeader() {
 /* ───────── map (MapLibre + OpenFreeMap 벡터: 전세계·무료·키 불필요) + Kakao(국내 장소검색) ───────── */
 const map = new maplibregl.Map({
   container: "map",
-  // CARTO 래스터(한국 CDN, ~40ms/타일) — OpenFreeMap(유럽, ~500ms)에서 교체
+  // 구글 지도 타일(한국어 라벨·전세계). 비공식 엔드포인트 — 막히면 CARTO로 폴백 가능
   style: {
     version: 8,
     sources: {
-      carto: {
+      gmap: {
         type: "raster",
-        tiles: ["a", "b", "c", "d"].map((s) => `https://${s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png`),
+        tiles: [0, 1, 2, 3].map((s) => `https://mt${s}.google.com/vt/lyrs=m&hl=ko&x={x}&y={y}&z={z}`),
         tileSize: 256,
-        attribution: "© OpenStreetMap © CARTO",
+        attribution: "© Google",
       },
     },
-    layers: [{ id: "carto", type: "raster", source: "carto" }],
+    layers: [{ id: "gmap", type: "raster", source: "gmap" }],
   },
   center: [127.8, 36.5], zoom: 5.6,
   attributionControl: { compact: true },

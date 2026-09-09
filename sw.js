@@ -23,7 +23,7 @@ self.addEventListener("fetch", (e) => {
   // 지도 타일·카카오 검색: 캐시하지 않음 (용량 폭증·stale 결과 방지)
   if (url.hostname.endsWith("openfreemap.org") || url.hostname.endsWith("openstreetmap.org") ||
       url.hostname.endsWith("kakao.com") || url.hostname.endsWith("daumcdn.net") ||
-      url.hostname.endsWith("supabase.co")) return;
+      url.hostname.endsWith("supabase.co") || url.hostname.endsWith("google.com")) return;
 
   if (url.origin === location.origin) {
     // 앱 셸: network-first — 배포하면 다음 접속에 바로 반영, 오프라인이면 캐시
