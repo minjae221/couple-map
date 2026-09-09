@@ -377,7 +377,7 @@ nav button.active::after{display:none}
 .em-lg{width:64px;height:64px;display:block;margin:0 auto 10px}
 nav button .em{width:1.15em;height:1.15em;margin-right:2px}
 #names .em{width:0.95em;height:0.95em;vertical-align:-0.08em;margin:0 2px}
-.heart-pin{cursor:pointer;filter:drop-shadow(0 4px 8px rgba(28,25,23,.28))}
+.heart-pin{cursor:pointer;filter:drop-shadow(0 5px 10px rgba(244,63,94,.45))}
 .heart-pin svg{display:block;transform-origin:50% 90%;animation:pinDrop .45s var(--squish) both}
 /* ── 시그니처 그라데이션 브랜드 ── */
 #names{background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent}
@@ -660,7 +660,7 @@ const map = new maplibregl.Map({
     sources: {
       gmap: {
         type: "raster",
-        tiles: [0, 1, 2, 3].map((s) => `https://mt${s}.google.com/vt/lyrs=m&hl=ko&x={x}&y={y}&z={z}`),
+        tiles: [0, 1, 2, 3].map((s) => `https://mt${s}.google.com/vt/lyrs=m&hl=ko&x={x}&y={y}&z={z}&apistyle=s.t%3A2%7Cs.e%3Al%7Cp.v%3Aoff`), // POI 아이콘 숨김 — 하트핀이 주인공
         tileSize: 256,
         attribution: "© Google",
       },
@@ -671,7 +671,7 @@ const map = new maplibregl.Map({
   attributionControl: { compact: true },
   fadeDuration: 80,
 });
-const HEART_SVG = `<svg viewBox="0 0 36 34" width="34" height="32"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f43f5e"/><stop offset="1" stop-color="#ff9159"/></linearGradient></defs><path d="M18 31C9.5 24 4 18.6 4 12.6 4 7.8 7.8 4 12.4 4c2.3 0 4.4 1.1 5.6 2.9C19.2 5.1 21.3 4 23.6 4 28.2 4 32 7.8 32 12.6c0 6-5.5 11.4-14 18.4z" fill="url(#hg)" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round"/></svg>`;
+const HEART_SVG = `<svg viewBox="0 0 36 34" width="46" height="44"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f43f5e"/><stop offset="1" stop-color="#ff9159"/></linearGradient></defs><path d="M18 31C9.5 24 4 18.6 4 12.6 4 7.8 7.8 4 12.4 4c2.3 0 4.4 1.1 5.6 2.9C19.2 5.1 21.3 4 23.6 4 28.2 4 32 7.8 32 12.6c0 6-5.5 11.4-14 18.4z" fill="url(#hg)" stroke="#ffffff" stroke-width="3" stroke-linejoin="round"/></svg>`;
 let ps = null; // Kakao 장소검색 (지도 없이 검색만 사용)
 try { kakao.maps.load(() => { ps = new kakao.maps.services.Places(); }); } catch (e) {}
 const pins = [];
