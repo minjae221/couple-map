@@ -1168,7 +1168,12 @@ $("importFile").addEventListener("change", (e) => {
       d = JSON.parse(r.result);
       if (!d || !Array.isArray(d.places) || !Array.isArray(d.bucket)) throw 0;
     } catch (err) { alert("백업 파일이 아니에요"); return; }
-
+    await mergeBackup(d);
+  };
+  r.readAsText(f);
+  e.target.value = "";
+});
+async function mergeBackup(d) {
     const before = JSON.stringify(db);
     const strOr = (v, fb) => (typeof v === "string" ? v : fb);
     const pids = new Set(db.places.map((p) => p.id));
@@ -1241,10 +1246,19 @@ $("importFile").addEventListener("change", (e) => {
     renderAll();
     toast("불러왔어요 — 합쳐서 보관 중");
     requestSync();
-  };
-  r.readAsText(f);
-  e.target.value = "";
-});
+}
+/* ?demo=1 로 열면 샘플 데이터 자동 주입 (미리보기용) */
+if (new URLSearchParams(location.search).get("demo")) {
+  (async () => {
+    try {
+      const d = await (await fetch("sample-data.json")).json();
+      if (!db.places.some((p) => String(p.id).startsWith("smpl"))) {
+        await mergeBackup(d);
+        toast("샘플 추억을 채워뒀어요 💗");
+      }
+    } catch (e) { toast("샘플 로드 실패"); }
+  })();
+}
 
 /* veil 바깥 탭으로 닫기 (작성 중인 폼은 확인 후) */
 ["veilSearch", "veilSettings", "veilAnni", "veilCity"].forEach((id) => {
