@@ -397,6 +397,31 @@ nav button.active{background:var(--grad);color:#fff}
 .tl-ov h3{font-weight:800;font-size:1.15rem;letter-spacing:-.02em}
 .tl-ov time{font-size:.72rem;opacity:.85;font-weight:600}
 .tl-ov p{font-size:.85rem;margin-top:2px;opacity:.95;word-break:keep-all}
+/* ── 톡톡 튀는 마이크로 인터랙션 ── */
+@keyframes popIn{0%{opacity:0;transform:translateY(14px) scale(.94)}60%{opacity:1;transform:translateY(-3px) scale(1.012)}100%{opacity:1;transform:none}}
+@keyframes pillIn{from{opacity:0;transform:scale(.78)}to{opacity:1;transform:none}}
+@keyframes tabPop{0%{transform:scale(.88)}55%{transform:scale(1.08)}100%{transform:scale(1)}}
+@keyframes checkPop{0%{transform:scale(.6)}50%{transform:scale(1.32)}75%{transform:scale(.94)}100%{transform:scale(1.05)}}
+@keyframes bop{0%,100%{transform:translateY(0)}30%{transform:translateY(-7px) scale(1.06)}60%{transform:translateY(0) scale(.97)}}
+/* 리스트: 스프링 팝인 + 순차 등장(--i) */
+.tl-card,.tl-month,#bucketList li{animation:popIn .46s var(--squish) both;animation-delay:calc(var(--i,0)*45ms)}
+#tlStats span{animation:pillIn .38s var(--squish) both;animation-delay:calc(var(--i,0)*55ms)}
+/* 누르면 쏙 들어갔다 튐 */
+.tl-card,.city-card,#anniList li,#searchResults li{transition:transform .18s var(--squish)}
+.tl-card:active,.city-card:active,#anniList li:active,#searchResults li:active{transform:scale(.965)}
+nav button.active{animation:tabPop .36s var(--squish)}
+nav button:active{transform:scale(.9)}
+#fab{transition:transform .26s var(--squish);animation:bop 3.6s ease-in-out 1.2s infinite}
+#fab:active{transform:scale(.84) rotate(-10deg);animation:none}
+.bk-check.done{animation:checkPop .44s var(--squish)}
+.bk-check:active{transform:scale(.82)}
+#toast{transition:opacity .2s,transform .38s var(--squish)}
+#toast:not(.show){transform:translateX(-50%) translateY(16px) scale(.9)}
+.heart-pin:active svg{animation:bop .42s var(--squish)}
+@keyframes sheetUp{from{transform:translateY(100%)}70%{transform:translateY(-8px)}to{transform:none}}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
 </style>
 </head>
 <body>
@@ -636,6 +661,7 @@ window.addEventListener("popstate", () => {
   if (layers.length) { history.pushState({ cm: 1 }, ""); historyArmed = true; }
 });
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._tm); t._tm = setTimeout(() => t.classList.remove("show"), 2200); }
+const buzz = (ms = 10) => { try { navigator.vibrate?.(ms); } catch { /* 미지원 브라우저 */ } };
 
 /* ───────── header / d-day ───────── */
 function renderHeader() {
@@ -714,6 +740,7 @@ function switchTab(which) {
     $(pane).classList.toggle("active", k === which);
     $(tab).classList.toggle("active", k === which);
   }
+  buzz();
   $("bucketAdd").classList.toggle("show", which === "bucket");
   $("fab").style.display = which === "map" ? "" : "none";
   if (which === "map") setTimeout(() => map.resize(), 60);
@@ -738,6 +765,7 @@ function renderTimeline() {
       `<span data-act="city" style="cursor:pointer"><img class="em" src="assets/emoji/city.png" alt=""> <b>${cityN}</b></span>` +
       (nx ? `<span data-act="anni" style="cursor:pointer"><img class="em" src="assets/emoji/cake.png" alt=""> ${nx.name} <b>${nx.diff === 0 ? "오늘" : "D-" + nx.diff}</b></span>` : "")
     : "";
+  $("tlStats").querySelectorAll("span").forEach((el, i) => el.style.setProperty("--i", i));
   $("tlStats").querySelectorAll("[data-act]").forEach((el) => {
     el.onclick = () => {
       if (el.dataset.act === "city") { renderCityGrid(); openLayer("veilCity"); void backfillRegions(); }
@@ -757,13 +785,14 @@ function renderTimeline() {
       (p.note ? `<p>${esc(p.note)}</p>` : "") + `</div></div>`;
   }
   $("tlList").innerHTML = html;
+  $("tlList").querySelectorAll(".tl-card,.tl-month").forEach((el, i) => el.style.setProperty("--i", Math.min(i, 8)));
   [...$("tlList").querySelectorAll(".tl-card")].forEach((c) => (c.onclick = () => openDetail(c.dataset.id)));
 }
 
 /* ───────── add place flow ───────── */
 let draft = null; // {lat,lng,name}
 let picking = false;
-$("fab").onclick = () => { openLayer("veilSearch"); $("searchInput").focus(); };
+$("fab").onclick = () => { buzz(14); openLayer("veilSearch"); $("searchInput").focus(); };
 $("btnSearchCancel").onclick = () => closeLayer("veilSearch");
 
 let searchTm = null;
@@ -998,9 +1027,10 @@ function renderBucket() {
   $("bucketEmpty").style.display = items.length ? "none" : "";
   $("bucketCount").textContent = items.length ? `${items.filter((b) => b.done).length}/${items.length} 이뤘어요` : "";
   ul.innerHTML = "";
-  items.forEach((b) => {
+  items.forEach((b, i) => {
     const li = document.createElement("li");
     li.className = b.done ? "done" : "";
+    li.style.setProperty("--i", Math.min(i, 8));
     li.innerHTML =
       `<button class="bk-check ${b.done ? "done" : ""}" aria-label="완료">♥</button>` +
       `<div class="bk-body"><div class="bk-title">${esc(b.title)}</div>` +
@@ -1009,6 +1039,7 @@ function renderBucket() {
       (b.done ? `<button class="bk-pin" title="지도에 기록">📍</button>` : "") +
       `<button class="bk-del" aria-label="삭제">✕</button>`;
     li.querySelector(".bk-check").onclick = () => {
+      buzz(b.done ? 8 : 22);
       b.done = !b.done;
       b.doneDate = b.done ? localToday() : "";
       b.updated_at = Date.now();
